@@ -21,3 +21,5 @@ sql5300: $(OBJS)
 # Note that since it is not the first target, you have to invoke it explicitly: $ make clean
 clean:
 	rm -f sql5300 *.o
+
+	
