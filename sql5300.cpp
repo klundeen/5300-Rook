@@ -124,3 +124,29 @@ void printCreate(const CreateStatement *stmt)
 {
     cout << "CreateStatment" << endl;
 }
+
+/**
+ * Convert the hyrise ColumnDefinition AST back into the equivalent SQL
+ * @param col  column definition to unparse
+ * @return     SQL equivalent to *col
+ */
+string columnDefinitionToString(const ColumnDefinition *col)
+{
+    string ret(col->name);
+    switch (col->type)
+    {
+    case ColumnDefinition::DOUBLE:
+        ret += " DOUBLE";
+        break;
+    case ColumnDefinition::INT:
+        ret += " INT";
+        break;
+    case ColumnDefinition::TEXT:
+        ret += " TEXT";
+        break;
+    default:
+        ret += " ...";
+        break;
+    }
+    return ret;
+}
