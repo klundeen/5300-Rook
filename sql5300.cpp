@@ -117,30 +117,23 @@ string execute(const SQLStatement *stmt)
     }
     return str;
 }
-
-// Sqlhelper with printSelectStatementInfo
 string printCreate(const CreateStatement *stmt)
 {
-    string str;
-    str += "CREATE TABLE ";
-    str += string(stmt->tableName) + " (";
+    string sql_string,sql_string_final;
+  
+    if (stmt->columns != NULL) {
+        sql_string+="(";
+        for (auto col_name : *stmt->columns) {
+        sql_string +=" "+columnDefinitionToString(col_name)+",";
+                
+      }
+    sql_string.resize(sql_string.size() - 1);
+ 
+    sql_string_final+="CREATE TABLE "+string(stmt->tableName)+" "+sql_string+")";
 
-    bool first = false;
-    for (ColumnDefinition *col : *stmt->columns)
-    {
-        if (first)
-        {
-            str += ", ";
-        }
-        else
-        {
-            first = true;
-        }
-        str += columnDefinitionToString(col);
     }
-    str += ")";
-    return str;
-}
+return sql_string_final;
+}	
 
 /**
  * Convert the hyrise ColumnDefinition AST back into the equivalent SQL
