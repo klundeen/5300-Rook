@@ -13,9 +13,13 @@ const unsigned int BLOCK_SZ = 4096;
 using namespace std;
 using namespace hsql;
 
-void printStatementInfo(const SQLStatement *stmt);
-void printSelect(const SelectStatement *stmt);
-void printCreate(const CreateStatement *stmt);
+string execute(const SQLStatement *stmt);
+string printSelect(const SelectStatement *stmt);
+string printCreate(const CreateStatement *stmt);
+string columnDefinitionToString(const ColumnDefinition *col);
+string printExpression(const Expr *expr);
+string printTableRefInfo(const TableRef *table);
+string printOperatorExpression(const Expr *expr);
 
 int main(void)
 {
@@ -64,8 +68,8 @@ int main(void)
             continue;
 
         // Use SQLParser
-        // SQLParserResult *parser = SQLParser::parseSQLString(sql);
-        hsql::SQLParserResult *parser = hsql::SQLParser::parseSQLString(sql);
+        SQLParserResult *parser = SQLParser::parseSQLString(sql);
+        // hsql::SQLParserResult *parser = hsql::SQLParser::parseSQLString(sql);
 
         if (!parser->isValid())
         {
@@ -77,30 +81,30 @@ int main(void)
         {
             for (uint i = 0; i < parser->size(); i++)
             {
-                printStatementInfo(parser->getStatement(i));
+                cout << execute(parser->getStatement(i)) << endl;
             }
         }
-        delete parser;
+        free(parser);
     }
     return EXIT_SUCCESS;
 }
 
 // Sqlhelper function to handle different SQL
-void printStatementInfo(const SQLStatement *stmt)
+string execute(const SQLStatement *stmt)
 {
+    string str;
     switch (stmt->type())
     {
     case kStmtSelect:
-        printSelect((const SelectStatement *)stmt);
+        str += printSelect((const SelectStatement *)stmt);
         break;
     case kStmtCreate:
-        printCreate((const CreateStatement *)stmt);
+        str += printCreate((const CreateStatement *)stmt);
         break;
     /*We don't need these functions now
     case kStmtInsert:
         printInsertStatementInfo((const InsertStatement *)stmt, 0);
         break;
-
     case kStmtImport:
         printImportStatementInfo((const ImportStatement *)stmt, 0);
         break;
@@ -111,18 +115,31 @@ void printStatementInfo(const SQLStatement *stmt)
         cout << "No implemented" << endl;
         break;
     }
+    return str;
 }
 
 // Sqlhelper with printSelectStatementInfo
-void printSelect(const SelectStatement *stmt)
+string printCreate(const CreateStatement *stmt)
 {
-    cout << "SelectStatement" << endl;
-}
+    string str;
+    str += "CREATE TABLE ";
+    str += string(stmt->tableName) + " (";
 
-// Sqlhelper with printSelectStatementInfo
-void printCreate(const CreateStatement *stmt)
-{
-    cout << "CreateStatment" << endl;
+    bool first = false;
+    for (ColumnDefinition *col : *stmt->columns)
+    {
+        if (first)
+        {
+            str += ", ";
+        }
+        else
+        {
+            first = true;
+        }
+        str += columnDefinitionToString(col);
+    }
+    str += ")";
+    return str;
 }
 
 /**
@@ -132,21 +149,209 @@ void printCreate(const CreateStatement *stmt)
  */
 string columnDefinitionToString(const ColumnDefinition *col)
 {
-    string ret(col->name);
+    string str;
+    str += col->name;
+
     switch (col->type)
     {
     case ColumnDefinition::DOUBLE:
-        ret += " DOUBLE";
+        str += " DOUBLE";
         break;
     case ColumnDefinition::INT:
-        ret += " INT";
+        str += " INT";
         break;
     case ColumnDefinition::TEXT:
-        ret += " TEXT";
+        str += " TEXT";
         break;
     default:
-        ret += " ...";
+        str += " ...";
         break;
     }
-    return ret;
+    return str;
+}
+
+// Sqlhelper with printSelectStatementInfo
+string printSelect(const SelectStatement *stmt)
+{
+    string str;
+    str += "SELECT ";
+
+    bool first = false;
+    for (Expr *expr : *stmt->selectList)
+    {
+        if (first)
+        {
+            str += ", ";
+        }
+        else
+        {
+            first = true;
+        }
+        str += printExpression(expr);
+    }
+
+    str += " FROM " + printTableRefInfo(stmt->fromTable);
+
+    if (stmt->whereClause != NULL)
+        str += " WHERE " + printExpression(stmt->whereClause);
+
+    /* This function has bug
+    if (stmt->unionSelect != NULL)
+        str += "Union:";
+        str += printSelect(stmt->unionSelect); */
+
+    if (stmt->order != NULL)
+    {
+        std::cout << "ORDER BY ";
+        str += printExpression(stmt->order->at(0)->expr);
+        if (stmt->order->at(0)->type == kOrderAsc)
+        {
+            std::cout << "ASCENDING ";
+        }
+        else
+        {
+            std::cout << "DESCENDING ";
+        }
+    }
+    return str;
+}
+
+string printExpression(const Expr *expr)
+{
+    string str;
+    switch (expr->type)
+    {
+    case kExprStar:
+        str += "*";
+        break;
+    case kExprColumnRef:
+        if (expr->table != NULL)
+            str += string(expr->table) + ".";
+        str += expr->name;
+        break;
+    // case kExprTableColumnRef: inprint(expr->table, expr->name, numIndent); break;
+    case kExprLiteralFloat:
+        str += to_string(expr->fval);
+        break;
+    case kExprLiteralInt:
+        str += to_string(expr->ival);
+        break;
+    case kExprLiteralString:
+        str += string(expr->name);
+        break;
+    case kExprFunctionRef:
+        str += string(expr->name);
+        str += string(expr->expr->name);
+        break;
+    case kExprOperator:
+        str += printOperatorExpression(expr);
+        break;
+    default:
+        str += "Unrecognized expression type %d\n";
+        return str;
+    }
+
+    if (expr->alias != NULL)
+    {
+        str += " AS ";
+        str += expr->alias;
+    }
+    return str;
+}
+
+string printTableRefInfo(const TableRef *table)
+{
+    string str;
+    switch (table->type)
+    {
+    case kTableName:
+        str += table->name;
+        break;
+    case kTableSelect:
+        str += printSelect(table->select);
+        break;
+    case kTableJoin:
+        str += printTableRefInfo(table->join->left);
+
+        switch (table->join->type)
+        {
+        case kJoinInner:
+            str += " JOIN ";
+            break;
+        case kJoinOuter:
+            str += " OUTER JOIN ";
+            break;
+        case kJoinLeft:
+            str += " LEFT JOIN ";
+            break;
+        case kJoinRight:
+            str += " RIGHT JOIN ";
+            break;
+        default:
+            cout << "Not yet implemented" << endl;
+            /*      kJoinLeftOuter,
+                    kJoinRightOuter,
+                    kJoinCross,
+                    kJoinNatural*/
+            break;
+        }
+        str += printTableRefInfo(table->join->right);
+        if (table->join->condition != NULL)
+        {
+            str += " ON " + printExpression(table->join->condition);
+        }
+        break;
+    case kTableCrossProduct:
+        bool first = false;
+        for (TableRef *tbl : *table->list)
+        {
+            if (first)
+            {
+                str += ", ";
+            }
+            else
+            {
+                first = true;
+            }
+            str += printTableRefInfo(tbl);
+        }
+        break;
+    }
+    if (table->alias != NULL)
+    {
+        str += " AS ";
+        str += table->alias;
+    }
+    return str;
+}
+
+string printOperatorExpression(const Expr *expr)
+{
+    string str;
+    if (expr == NULL)
+        return "null";
+    if (expr->expr != NULL)
+        str += printExpression(expr->expr) + " ";
+
+    switch (expr->opType)
+    {
+    case Expr::SIMPLE_OP:
+        str += expr->opChar;
+        break;
+    case Expr::AND:
+        str += "AND";
+        break;
+    case Expr::OR:
+        str += "OR";
+        break;
+    case Expr::NOT:
+        str += "NOT";
+        break;
+    default:
+        str += expr->opType;
+        break;
+    }
+    if (expr->expr2 != NULL)
+        str += " " + printExpression(expr->expr2);
+    return str;
 }
