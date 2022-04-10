@@ -5,14 +5,13 @@
 #include "db_cxx.h"
 #include "SQLParser.h"
 
-// CREATE A DIRECTORY IN YOUR HOME DIR ~/cpsc5300/data before running this
-const char *HOME = "cpsc5300/data";
-const char *EXAMPLE = "example.db";
-const unsigned int BLOCK_SZ = 4096;
+// we allocate and initialize the _DB_ENV global
+DbEnv *_DB_ENV;
 
 using namespace std;
 using namespace hsql;
 
+// forward declare
 string execute(const SQLStatement *stmt);
 string printSelect(const SelectStatement *stmt);
 string printCreate(const CreateStatement *stmt);
@@ -21,39 +20,33 @@ string printExpression(const Expr *expr);
 string printTableRefInfo(const TableRef *table);
 string printOperatorExpression(const Expr *expr);
 
-int main(void)
+/**
+ * Main entry point of the sql5300 program
+ * @args dbenvpath  the path to the BerkeleyDB database environment
+ */
+int main(int argc, char *argv[])
 {
-    std::cout << "Have you created a dir: ~/" << HOME << "? (y/n) " << std::endl;
-    std::string ans;
-    std::cin >> ans;
-    if (ans[0] != 'y')
+    // Open/create the db enviroment
+    if (argc != 2)
+    {
+        cerr << "Usage: cpsc5300: dbenvpath" << endl;
         return 1;
-    const char *home = std::getenv("HOME");
-    std::string envdir = std::string(home) + "/" + HOME;
-
+    }
+    char *envHome = argv[1];
+    cout << "(sql5300: running with database environment at " << envHome << ")" << endl;
     DbEnv env(0U);
-    env.set_message_stream(&std::cout);
-    env.set_error_stream(&std::cerr);
-    env.open(envdir.c_str(), DB_CREATE | DB_INIT_MPOOL, 0);
-
-    Db db(&env, 0);
-    db.set_message_stream(env.get_message_stream());
-    db.set_error_stream(env.get_error_stream());
-    db.set_re_len(BLOCK_SZ);                                               // Set record length to 4K
-    db.open(NULL, EXAMPLE, NULL, DB_RECNO, DB_CREATE | DB_TRUNCATE, 0644); // Erases anything already there
-
-    char block[BLOCK_SZ];
-    Dbt data(block, sizeof(block));
-    int block_number;
-    Dbt key(&block_number, sizeof(block_number));
-    block_number = 1;
-    strcpy(block, "hello!");
-    db.put(NULL, &key, &data, 0); // write block #1 to the database
-
-    Dbt rdata;
-    db.get(NULL, &key, &rdata, 0); // read block #1 from the database
-    std::cout << "Read (block #" << block_number << "): '" << (char *)rdata.get_data() << "'";
-    std::cout << " (expect 'hello!')" << std::endl;
+    env.set_message_stream(&cout);
+    env.set_error_stream(&cerr);
+    try
+    {
+        env.open(envHome, DB_CREATE | DB_INIT_MPOOL, 0);
+    }
+    catch (DbException &exc)
+    {
+        cerr << "(sql5300: " << exc.what() << ")";
+        exit(1);
+    }
+    _DB_ENV = &env;
 
     // SQL entry
     while (true)
@@ -75,7 +68,7 @@ int main(void)
         {
             cout << "inValid SQL:" << sql << endl;
             cout << parser->errorMsg() << endl;
-            continue;
+            delete parser;
         }
         else
         {
@@ -83,13 +76,17 @@ int main(void)
             {
                 cout << execute(parser->getStatement(i)) << endl;
             }
+            delete parser;
         }
-        free(parser);
     }
     return EXIT_SUCCESS;
 }
 
-// Sqlhelper function to handle different SQL
+/**
+ * Execute an SQL statement (but for now, just spit back the SQL)
+ * @param stmt  Hyrise AST for the statement
+ * @returns     a string (for now) of the SQL statment
+ */
 string execute(const SQLStatement *stmt)
 {
     string str;
@@ -117,23 +114,29 @@ string execute(const SQLStatement *stmt)
     }
     return str;
 }
+
+/**
+ * Execute an SQL create statement (but for now, just spit back the SQL)
+ * @param stmt  Hyrise AST for the create statement
+ * @returns     a string (for now) of the SQL statment
+ */
 string printCreate(const CreateStatement *stmt)
 {
-    string sql_string,sql_string_final;
-  
-    if (stmt->columns != NULL) {
-        sql_string+="(";
-        for (auto col_name : *stmt->columns) {
-        sql_string +=" "+columnDefinitionToString(col_name)+",";
-                
-      }
-    sql_string.resize(sql_string.size() - 1);
- 
-    sql_string_final+="CREATE TABLE "+string(stmt->tableName)+" "+sql_string+")";
+    string sql_string, sql_string_final;
 
+    if (stmt->columns != NULL)
+    {
+        sql_string += "(";
+        for (auto col_name : *stmt->columns)
+        {
+            sql_string += " " + columnDefinitionToString(col_name) + ",";
+        }
+        sql_string.resize(sql_string.size() - 1);
+
+        sql_string_final += "CREATE TABLE " + string(stmt->tableName) + " " + sql_string + ")";
     }
-return sql_string_final;
-}	
+    return sql_string_final;
+}
 
 /**
  * Convert the hyrise ColumnDefinition AST back into the equivalent SQL
@@ -163,7 +166,11 @@ string columnDefinitionToString(const ColumnDefinition *col)
     return str;
 }
 
-// Sqlhelper with printSelectStatementInfo
+/**
+ * Execute an SQL select statement (but for now, just spit back the SQL)
+ * @param stmt  Hyrise AST for the select statement
+ * @returns     a string (for now) of the SQL statment
+ */
 string printSelect(const SelectStatement *stmt)
 {
     string str;
@@ -209,9 +216,15 @@ string printSelect(const SelectStatement *stmt)
     return str;
 }
 
+/**
+ * Convert the hyrise Expr AST back into the equivalent SQL
+ * @param expr expression to unparse
+ * @return     SQL equivalent to *expr
+ */
 string printExpression(const Expr *expr)
 {
     string str;
+
     switch (expr->type)
     {
     case kExprStar:
@@ -244,14 +257,16 @@ string printExpression(const Expr *expr)
         return str;
     }
 
-    if (expr->alias != NULL)
-    {
-        str += " AS ";
-        str += expr->alias;
-    }
+     if (expr->alias != NULL)
+        str += string(" AS ") + expr->alias;
     return str;
 }
 
+/**
+ * Convert the hyrise TableRef AST back into the equivalent SQL
+ * @param table  table reference AST to unparse
+ * @return       SQL equivalent to *table
+ */
 string printTableRefInfo(const TableRef *table)
 {
     string str;
@@ -318,11 +333,18 @@ string printTableRefInfo(const TableRef *table)
     return str;
 }
 
+/**
+ * Convert the hyrise Expr AST for an operator expression back into the equivalent SQL
+ * @param expr operator expression to unparse
+ * @return     SQL equivalent to *expr
+ */
 string printOperatorExpression(const Expr *expr)
 {
     string str;
     if (expr == NULL)
         return "null";
+
+    // Left-hand side of expression
     if (expr->expr != NULL)
         str += printExpression(expr->expr) + " ";
 
@@ -344,6 +366,7 @@ string printOperatorExpression(const Expr *expr)
         str += expr->opType;
         break;
     }
+    // Right-hand side of expression (only present for binary operators)
     if (expr->expr2 != NULL)
         str += " " + printExpression(expr->expr2);
     return str;

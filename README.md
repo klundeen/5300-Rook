@@ -4,12 +4,9 @@
 #### Zhicong Zeng
 #### Lolakumari Jayachandran, Vindhya Nair
 
-
-
-Somethings to improve:
-
-1.Free all memory.
-
-2.Improve the DB code.
-
-3.Add comments.
+# MileStone1
+- <code>Milestone1</code> is playing around with the AST returned by the HyLine parser and general setup of the command loop.
+Usage (argument is database directory):
+<pre>
+$ valgrind ./sql5300 ~/cpsc5300/data
+</pre>
