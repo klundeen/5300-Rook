@@ -219,29 +219,33 @@ void *SlottedPage::address(u16 offset)
         Uses SlottedPage for storing records within blocks.
 **/
 
-/**This Function is not implemented yet.
+// HeapFile constructor has been declared in heap_storage.h
+
+//Create physical file.
 void HeapFile::create(void) {
-
+    this->db_open(DB_CREATE|DB_EXCL);
+	SlottedPage *block = get_new(); //first block of the file
+	delete block;
 }
-**/
 
-/**This Function is not implemented yet.
+//Delete the physical file
 void HeapFile::drop(void) {
-
+    close();
+    db.remove(this->dbfilename.c_str(), nullptr, 0);
+    //virtual int remove(const char *, const char *, u_int32_t);
 }
-**/
 
-/**This Function is not implemented yet.
+//Open physical file.
 void HeapFile::open(void) {
-
+    db_open();
+    this->db.set_re_len(DbBlock::BLOCK_SZ);//whats in the file overrides __init__ parameter
 }
-**/
 
-/**This Function is not implemented yet.
+//Close the physical file.
 void HeapFile::close(void) {
-
+    db.close(0);
+	closed = true;
 }
-**/
 
 // Allocate a new block for the database file.
 // Returns the new empty DbBlock that is managing the records in this block and its block id.
@@ -261,35 +265,60 @@ SlottedPage *HeapFile::get_new(void)
     return page;
 }
 
-/**This Function is not implemented yet.
+//Get a block from the database file.
 SlottedPage* HeapFile::get(BlockID block_id) {
-
+    Dbt key(&block_id, sizeof(block_id));
+    Dbt data;
+    this->db.get(nullptr, &key, &data, 0);
+    //virtual int get(DbTxn *txnid, Dbt *key, Dbt *data, u_int32_t flags);
+    return new SlottedPage(data, block_id);
 }
-**/
 
-/**This Function is not implemented yet.
+//Write a block back to the database file.
+//put blockid into block.block...
 void HeapFile::put(DbBlock* block) {
-
+    BlockID block_id(block->get_block_id());
+	Dbt blockid(&block_id, sizeof(block_id));
+	this->db.put(nullptr, &blockid, block->get_block(), 0);
+    //virtual int put(DbTxn *, Dbt *, Dbt *, u_int32_t);
 }
-**/
 
-/**This Function is not implemented yet.
+//Sequence of all block ids
 BlockIDs* HeapFile::block_ids() {
-
+    BlockIDs* id = new BlockIDs();
+	for (BlockID i = 1; i <= this->last; i++)
+		id->push_back(i);
+	return id;
 }
-**/
 
 /**This Function is not implemented yet.
+ * python solution doesn't contain this function
  u_int32_t HeapFile::get_last_block_id() {
 
 }
 **/
 
-/**This Function is not implemented yet.
+//Wrapper for Berkeley DB open, which does both open and creation.
 void HeapFile::db_open(uint flags) {
+    if (!this->closed) {
+		return;
+	}
+	//this->db.set_re_len(this->block_size);//record length - will be ignored if file already exists
+    this->db.set_re_len(DbBlock::BLOCK_SZ);//record length - will be ignored if file already exists
 
+	this->dbfilename = "./" + this->name + ".db"; //The DbEnv path implement later
+	this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0);//we always use record number files
+    //Db::open(DbTxn*, const char*, const char*, DBTYPE, u_int32_t, int)????
+
+    DB_BTREE_STAT *stat;
+	this->db.stat(nullptr,  &stat , flags);
+    //virtual int stat(DbTxn *, void *sp, u_int32_t flags);
+
+	this->last = stat->bt_ndata;
+    //u_int32_t bt_ndata;		/* Number of data items. */
+
+	this->closed = false;
 }
-**/
 
 /**
  * @class HeapTable - Heap storage engine (implementation of DbRelation)
