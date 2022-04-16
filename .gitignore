@@ -1,4 +1,6 @@
 sql5300
+.vscode/*
+
 # Prerequisites
 *.d
 
