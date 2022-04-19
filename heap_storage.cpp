@@ -221,30 +221,34 @@ void *SlottedPage::address(u16 offset)
 
 // HeapFile constructor has been declared in heap_storage.h
 
-//Create physical file.
-void HeapFile::create(void) {
-    this->db_open(DB_CREATE|DB_EXCL);
-	SlottedPage *block = get_new(); //first block of the file
-	delete block;
+// Create physical file.
+void HeapFile::create(void)
+{
+    this->db_open(DB_CREATE | DB_EXCL);
+    SlottedPage *block = get_new(); // first block of the file
+    delete block;
 }
 
-//Delete the physical file
-void HeapFile::drop(void) {
+// Delete the physical file
+void HeapFile::drop(void)
+{
     close();
     db.remove(this->dbfilename.c_str(), nullptr, 0);
-    //virtual int remove(const char *, const char *, u_int32_t);
+    // virtual int remove(const char *, const char *, u_int32_t);
 }
 
-//Open physical file.
-void HeapFile::open(void) {
+// Open physical file.
+void HeapFile::open(void)
+{
     db_open();
-    this->db.set_re_len(DbBlock::BLOCK_SZ);//whats in the file overrides __init__ parameter
+    this->db.set_re_len(DbBlock::BLOCK_SZ); // whats in the file overrides __init__ parameter
 }
 
-//Close the physical file.
-void HeapFile::close(void) {
+// Close the physical file.
+void HeapFile::close(void)
+{
     db.close(0);
-	closed = true;
+    closed = true;
 }
 
 // Allocate a new block for the database file.
@@ -265,118 +269,158 @@ SlottedPage *HeapFile::get_new(void)
     return page;
 }
 
-//Get a block from the database file.
-SlottedPage* HeapFile::get(BlockID block_id) {
+// Get a block from the database file.
+SlottedPage *HeapFile::get(BlockID block_id)
+{
     Dbt key(&block_id, sizeof(block_id));
     Dbt data;
     this->db.get(nullptr, &key, &data, 0);
-    //virtual int get(DbTxn *txnid, Dbt *key, Dbt *data, u_int32_t flags);
+    // virtual int get(DbTxn *txnid, Dbt *key, Dbt *data, u_int32_t flags);
     return new SlottedPage(data, block_id);
 }
 
-//Write a block back to the database file.
-//put blockid into block.block...
-void HeapFile::put(DbBlock* block) {
+// Write a block back to the database file.
+// put blockid into block.block...
+void HeapFile::put(DbBlock *block)
+{
     BlockID block_id(block->get_block_id());
-	Dbt blockid(&block_id, sizeof(block_id));
-	this->db.put(nullptr, &blockid, block->get_block(), 0);
-    //virtual int put(DbTxn *, Dbt *, Dbt *, u_int32_t);
+    Dbt blockid(&block_id, sizeof(block_id));
+    this->db.put(nullptr, &blockid, block->get_block(), 0);
+    // virtual int put(DbTxn *, Dbt *, Dbt *, u_int32_t);
 }
 
-//Sequence of all block ids
-BlockIDs* HeapFile::block_ids() {
-    BlockIDs* id = new BlockIDs();
-	for (BlockID i = 1; i <= this->last; i++)
-		id->push_back(i);
-	return id;
+// Sequence of all block ids
+BlockIDs *HeapFile::block_ids()
+{
+    BlockIDs *id = new BlockIDs();
+    for (BlockID i = 1; i <= this->last; i++)
+        id->push_back(i);
+    return id;
 }
 
-/**This Function is not implemented yet.
- * python solution doesn't contain this function
- u_int32_t HeapFile::get_last_block_id() {
+// Return the last block id
+// Already constructed in heap_storage.h
+// u_int32_t *HeapFile::get_last_block_id()
+// {
+//     
+// }
 
-}
-**/
+// Wrapper for Berkeley DB open, which does both open and creation.
+void HeapFile::db_open(uint flags)
+{
+    if (!this->closed)
+    {
+        return;
+    }
+    // this->db.set_re_len(this->block_size);//record length - will be ignored if file already exists
+    this->db.set_re_len(DbBlock::BLOCK_SZ); // record length - will be ignored if file already exists
 
-//Wrapper for Berkeley DB open, which does both open and creation.
-void HeapFile::db_open(uint flags) {
-    if (!this->closed) {
-		return;
-	}
-	//this->db.set_re_len(this->block_size);//record length - will be ignored if file already exists
-    this->db.set_re_len(DbBlock::BLOCK_SZ);//record length - will be ignored if file already exists
-
-	this->dbfilename = "./" + this->name + ".db"; //The DbEnv path implement later
-	this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0);//we always use record number files
-    //Db::open(DbTxn*, const char*, const char*, DBTYPE, u_int32_t, int)????
+    this->dbfilename = "./" + this->name + ".db";                                    // The DbEnv path implement later
+    this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0); // we always use record number files
+    // Db::open(DbTxn*, const char*, const char*, DBTYPE, u_int32_t, int)????
 
     DB_BTREE_STAT *stat;
-	this->db.stat(nullptr,  &stat , flags);
-    //virtual int stat(DbTxn *, void *sp, u_int32_t flags);
+    this->db.stat(nullptr, &stat, flags);
+    // virtual int stat(DbTxn *, void *sp, u_int32_t flags);
 
-	this->last = stat->bt_ndata;
-    //u_int32_t bt_ndata;		/* Number of data items. */
+    this->last = stat->bt_ndata;
+    // u_int32_t bt_ndata;		/* Number of data items. */
 
-	this->closed = false;
+    this->closed = false;
 }
 
 /**
  * @class HeapTable - Heap storage engine (implementation of DbRelation)
  */
 
-/**This Function is not implemented yet.
-void HeapTable::create() {
+// HeapTable constructor
+// Just size. Heapfile doesn't contians DB_BLOCK_SIZE
+HeapTable::HeapTable(Identifier table_name, ColumnNames column_names, ColumnAttributes column_attributes) : DbRelation(
+                                                                                                                table_name, column_names, column_attributes),
+                                                                                                            file(table_name) {}
 
+// Execute: CREATE TABLE <table_name> ( <columns> )
+// Is not responsible for metadata storage or validation.
+void HeapTable::create()
+{
+    file.create();
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::create_if_not_exists() {
-
+// Execute: CREATE TABLE IF NOT EXISTS <table_name> ( <columns> )
+// Is not responsible for metadata storage or validation.
+void HeapTable::create_if_not_exists()
+{
+    try
+    {
+        open();
+    }
+    catch (DbException &e)
+    {
+        create();
+    }
+    // Almost any error in the DB library throws a DbException.
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::drop() {
-
+// Execute: DROP TABLE <table_name>
+void HeapTable::drop()
+{
+    file.drop();
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::open() {
-
+// Open existing table. Enables: insert, update, delete, select, project
+void HeapTable::open()
+{
+    file.open();
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::close() {
-
+// Closes the table. Disables: insert, update, delete, select, project
+void HeapTable::close()
+{
 }
-**/
 
-/**This Function is not implemented yet.
-Handle HeapTable::insert(const ValueDict* row){
-
+// Expect row to be a dictionary with column name keys.
+// Execute: INSERT INTO <table_name> (<row_keys>) VALUES (<row_values>)
+// Return the handle of the inserted row.
+Handle HeapTable::insert(const ValueDict *row)
+{
+    open();
+    Handle h = append(validate(row));
+    return h;
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::update(const Handle handle, const ValueDict* new_values) {
-
+// Expect new_values to be a dictionary with column name keys.
+//  Conceptually, execute: UPDATE INTO <table_name> SET <new_values> WHERE <handle>
+//  where handle is sufficient to identify one specific record (e.g., returned from an insert
+//  or select
+void HeapTable::update(const Handle handle, const ValueDict *new_values)
+{
+    throw DbRelationError("Not implemented");
 }
-**/
 
-/**This Function is not implemented yet.
-void HeapTable::del(const Handle handle) {
-
+// Conceptually, execute: DELETE FROM <table_name> WHERE <handle>
+//  where handle is sufficient to identify one specific record (e.g., returned from an insert
+//  or select).
+void HeapTable::del(const Handle handle)
+{
+    throw DbRelationError("Not implemented");
 }
-**/
 
-/**This Function is not implemented yet.
-Handles* HeapTable::select() {
+// Conceptually, execute: SELECT <handle> FROM <table_name> WHERE <where>
+// Returns a list of handles for qualifying rows.
+Handles *HeapTable::select()
+{
+    Handles *handles = new Handles();
+    BlockIDs *block_ids = file.block_ids();
 
+    for (auto const &block_id : *block_ids)
+    {
+        SlottedPage *block = file.get(block_id);
+        RecordIDs *record_ids = block->ids();
+        for (auto const &record_id : *record_ids)
+            handles->push_back(Handle(block_id, record_id));
+    }
+    return handles;
 }
-**/
 
 // Select the specific handles from where
 // Return a list of handles(rows)
@@ -390,36 +434,88 @@ Handles *HeapTable::select(const ValueDict *where)
         RecordIDs *record_ids = block->ids();
         for (auto const &record_id : *record_ids)
             handles->push_back(Handle(block_id, record_id));
-        delete record_ids;
-        delete block;
     }
-    delete block_ids;
     return handles;
 }
 
-/**This Function is not implemented yet.
-ValueDict* HeapTable::project(Handle handle) {
-
+// Return all values for handle.
+ValueDict *HeapTable::project(Handle handle)
+{
+    open();
+    BlockID block_id = handle.first;
+    RecordID record_id = handle.second;
+    SlottedPage *block = file.get(block_id);
+    Dbt *data = block->get(record_id);
+    ValueDict *row = unmarshal(data);
+    return row;
 }
-**/
 
-/**This Function is not implemented yet.
-ValueDict* HeapTable::project(Handle handle, const ColumnNames* column_names){
-
+// Return a sequence of values for handle given by column_names.
+ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names)
+{
+    open();
+    BlockID block_id = handle.first;
+    RecordID record_id = handle.second;
+    SlottedPage *block = file.get(block_id);
+    Dbt *data = block->get(record_id);
+    ValueDict *row = unmarshal(data);
+    if (column_names->empty())
+        return row;
+    ValueDict *result = new ValueDict();
+    for (auto const &column_name : *column_names)
+    {
+        (*result)[column_name] = (*row)[column_name];
+    }
+    return result;
 }
-**/
 
-/**This Function is not implemented yet.
-ValueDict* HeapTable::validate(const ValueDict* row) {
-
+// Check if the given row is acceptable to insert. Raise ValueError if not.
+// Otherwise return the full row dictionary.
+ValueDict *HeapTable::validate(const ValueDict *row)
+{
+    ValueDict *full_row = new ValueDict();
+    Value value;
+    for (auto const &column_name : this->column_names)
+    {
+        // ValueDict::iterator it;
+        //???std::_Rb_tree_iterator<std::pair<const Identifier, Value>>" has no member "begin"
+        //???class "std::_Rb_tree_const_iterator<std::pair<const Identifier, Value>>" has no member "end"
+        ValueDict::const_iterator it = row->lower_bound(column_name);
+        if (it == row->end())
+        {
+            throw DbRelationError("don't know how to handle NULLs, defaults, etc.");
+        }
+        else
+        {
+            value = it->second;
+            (*full_row)[column_name] = value;
+        }
+    }
+    return full_row;
 }
-**/
 
-/**This Function is not implemented yet.
-Handle HeapTable::append(const ValueDict* row) {
-
+// Assumes row is fully fleshed-out. Appends a record to the file.
+Handle HeapTable::append(const ValueDict *row)
+{
+    Dbt *data = marshal(row);
+    // u_int32_t from heap_storage.h HeapFile
+    SlottedPage *block = file.get(file.get_last_block_id());
+    RecordID recordID;
+    Handle result;
+    try
+    {
+        recordID = block->add(data);
+    }
+    catch (DbBlockNoRoomError &e)
+    {
+        block = file.get_new();
+        recordID = block->add(data);
+    }
+    file.put(block);
+    result.first = file.get_last_block_id();
+    result.second = recordID;
+    return result;
 }
-**/
 
 // return the bits to go into the file
 // caller responsible for freeing the returned Dbt and its enclosed ret->get_data().
@@ -458,11 +554,38 @@ Dbt *HeapTable::marshal(const ValueDict *row)
     return data;
 }
 
-/**This Function is not implemented yet.
-ValueDict* HeapTable::unmarshal(Dbt* data) {
+// Similar structure of marshal
+ValueDict *HeapTable::unmarshal(Dbt *data)
+{
+    ValueDict *row = new ValueDict();
+    uint offset = 0;
+    uint col_num = 0;
+    char *bytes = (char *) data->get_data();
+    Value value;//New value
 
+    for (auto const &column_name : this->column_names)
+    {
+        ColumnAttribute ca = this->column_attributes[col_num++];
+        if (ca.get_data_type() == ColumnAttribute::DataType::INT)
+        {
+            value.n = *(int32_t *) (bytes + offset);
+            offset += sizeof(int32_t);
+        }
+        else if (ca.get_data_type() == ColumnAttribute::DataType::TEXT)
+        {
+            u16 size = *(u16 *) (bytes + offset);
+            offset += sizeof(u16);
+            value.s = string(bytes + offset);
+            offset += size;
+        }
+        else
+        {
+            throw DbRelationError("Only know how to marshal INT and TEXT");
+        }
+        (*row)[column_name] = value;
+    }
+    return row;
 }
-**/
 
 // test function -- returns true if all tests pass
 bool test_heap_storage()

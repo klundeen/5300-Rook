@@ -4,6 +4,7 @@
 #include <iostream>
 #include "db_cxx.h"
 #include "SQLParser.h"
+#include "heap_storage.h"
 
 // we allocate and initialize the _DB_ENV global
 DbEnv *_DB_ENV;
@@ -26,17 +27,10 @@ string printOperatorExpression(const Expr *expr);
  */
 int main(int argc, char *argv[])
 {
-<<<<<<< Updated upstream
     // Open/create the db enviroment
     if (argc != 2)
     {
         cerr << "Usage: cpsc5300: dbenvpath" << endl;
-=======
-    std::cout << "Have you created a dir: ~/" << HOME << "? (y/n) " << std::endl;
-    std::string ans;
-    getline(cin, ans);
-    if (ans[0] != 'y')
->>>>>>> Stashed changes
         return 1;
     }
     char *envHome = argv[1];
@@ -60,12 +54,16 @@ int main(int argc, char *argv[])
     {
         cout << "SQL> ";
         string sql;
-        getline(cin, sql);        
+        getline(cin, sql);
 
         if (sql == "quit")
             break;
         if (sql.length() < 1)
             continue;
+        if (sql == "test") {
+            cout << "test_heap_storage: " << (test_heap_storage() ? "Pass" : "Failed") << endl;
+            continue;
+        }
 
         // Use SQLParser
         SQLParserResult *parser = SQLParser::parseSQLString(sql);

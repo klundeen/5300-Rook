@@ -1,5 +1,6 @@
 sql5300
 .vscode/*
+db6/*
 
 # Prerequisites
 *.d
