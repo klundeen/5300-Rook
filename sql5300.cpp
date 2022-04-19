@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
         if (sql.length() < 1)
             continue;
         if (sql == "test") {
+            cout << "test_slotted_page: " << (test_slotted_page() ? "Pass" : "Failed") << endl;
             cout << "test_heap_storage: " << (test_heap_storage() ? "Pass" : "Failed") << endl;
             continue;
         }

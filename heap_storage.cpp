@@ -34,7 +34,7 @@ typedef u_int16_t u16;
 **/
 
 // SlottedPage constructor:
-SlottedPage::SlottedPage(Dbt &block, BlockID block_id, bool is_new) : DbBlock(block, block_id, is_new)
+SlottedPage::SlottedPage(Dbt &block, BlockID block_id, bool is_new) : DbBlock(block, block_id)
 {
     if (is_new)
     {
@@ -54,6 +54,8 @@ RecordID SlottedPage::add(const Dbt *data)
     if (!has_room(data->get_size() + 4))
         throw DbBlockNoRoomError("not enough room for new record");
     u16 id = this->num_records + 1;
+    std::cout << "num_records" << num_records << std::endl;
+    std::cout << "id" << id << std::endl;
     u16 size = (u16)data->get_size();
     this->end_free -= size;
     u16 loc = this->end_free + 1;
@@ -72,7 +74,7 @@ Dbt *SlottedPage::get(RecordID record_id)
     {
         return nullptr; // this is just a tombstone, record has been deleted
     }
-    return new Dbt(address(loc), loc + size);
+    return new Dbt(this->address(loc), size);
 }
 
 // Replace the record with the given data. Raises ValueError if it won't fit.
@@ -121,7 +123,7 @@ RecordIDs *SlottedPage::ids(void)
 {
     RecordIDs *record_ids = new RecordIDs();
     u16 size, loc;
-    for (RecordID record_id = 1; record_id < this->num_records; record_id++)
+    for (RecordID record_id = 1; record_id <= this->num_records; record_id++)
     {
         get_header(size, loc, record_id);
         if (loc != 0)
@@ -145,8 +147,8 @@ void SlottedPage::put_header(RecordID id, u16 size, u16 loc)
         size = this->num_records;
         loc = this->end_free;
     }
-    put_n(4 * id, size);
-    put_n(4 * id + 2, loc);
+    put_n((u16)4 * id, size);
+    put_n((u16)(4 * id + 2), loc);
 }
 
 // Calculate if we have room to store a record with given size.
@@ -209,6 +211,18 @@ void *SlottedPage::address(u16 offset)
 {
     return (void *)((char *)this->block.get_data() + offset);
 }
+
+// //Count the total records
+// u16 SlottedPage::size() {
+//     u16 size, loc;
+//     u16 count = 0;
+//     for (RecordID record_id = 1; record_id <= this->num_records; record_id++) {
+//         get_header(size, loc, record_id);
+//         if (loc != 0)
+//             count++;
+//     }
+//     return count;
+// }
 
 /**
  * @class HeapFile - heap file implementation of DbFile
@@ -302,7 +316,7 @@ BlockIDs *HeapFile::block_ids()
 // Already constructed in heap_storage.h
 // u_int32_t *HeapFile::get_last_block_id()
 // {
-//     
+//
 // }
 
 // Wrapper for Berkeley DB open, which does both open and creation.
@@ -560,20 +574,20 @@ ValueDict *HeapTable::unmarshal(Dbt *data)
     ValueDict *row = new ValueDict();
     uint offset = 0;
     uint col_num = 0;
-    char *bytes = (char *) data->get_data();
-    Value value;//New value
+    char *bytes = (char *)data->get_data();
+    Value value; // New value
 
     for (auto const &column_name : this->column_names)
     {
         ColumnAttribute ca = this->column_attributes[col_num++];
         if (ca.get_data_type() == ColumnAttribute::DataType::INT)
         {
-            value.n = *(int32_t *) (bytes + offset);
+            value.n = *(int32_t *)(bytes + offset);
             offset += sizeof(int32_t);
         }
         else if (ca.get_data_type() == ColumnAttribute::DataType::TEXT)
         {
-            u16 size = *(u16 *) (bytes + offset);
+            u16 size = *(u16 *)(bytes + offset);
             offset += sizeof(u16);
             value.s = string(bytes + offset);
             offset += size;
@@ -590,6 +604,7 @@ ValueDict *HeapTable::unmarshal(Dbt *data)
 // test function -- returns true if all tests pass
 bool test_heap_storage()
 {
+    std::cout << "heap_storage" << std::endl;
     ColumnNames column_names;
     column_names.push_back("a");
     column_names.push_back("b");
@@ -625,6 +640,48 @@ bool test_heap_storage()
     if (value.s != "Hello!")
         return false;
     table.drop();
+
+    return true;
+}
+
+// Testing function for SlottedPage.
+bool test_slotted_page()
+{
+    // construct one
+    char block[DbBlock::BLOCK_SZ];
+    Dbt data(block, sizeof(block));
+    SlottedPage slot(data, 1, true);
+    std::cout << "Initialize one" << std::endl;
+
+    // Additions
+    RecordID id;
+    char record1[] = "Hello";
+    Dbt rec1_dbt(record1, sizeof(record1));
+    id = slot.add(&rec1_dbt);
+    if (id != 1)
+    {
+        std::cout << "Wrong Add record1 id" << std::endl;
+        return false;
+    }
+    std::cout << "Succeed Add record1 id" << std::endl;
+
+    char record2[] = "Wow";
+    Dbt rec2_dbt(record2, sizeof(record2));
+    id = slot.add(&rec2_dbt);
+    if (id != 2)
+    {
+        std::cout << "Wrong Add record2 id" << std::endl;
+        return false;
+    }
+    std::cout << "Succeed Add record2 id" << std::endl;
+
+    Dbt *get2_dbt = slot.get(id);
+    if (get2_dbt->get_data() != record2)
+    {
+        std::cout << "Wrong Get record2" << std::endl;
+        return false;
+    }
+    std::cout << "Right Get record2" << std::endl;
 
     return true;
 }
