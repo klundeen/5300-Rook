@@ -53,12 +53,10 @@ RecordID SlottedPage::add(const Dbt *data)
 {
     if (!has_room(data->get_size() + 4))
         throw DbBlockNoRoomError("not enough room for new record");
-    u16 id = this->num_records + 1;
-    std::cout << "num_records" << num_records << std::endl;
-    std::cout << "id" << id << std::endl;
+    u16 id = ++this->num_records;
     u16 size = (u16)data->get_size();
     this->end_free -= size;
-    u16 loc = this->end_free + 1;
+    u16 loc = this->end_free + 1U;
     put_header();
     put_header(id, size, loc);
     memcpy(this->address(loc), data->get_data(), size);
@@ -80,32 +78,30 @@ Dbt *SlottedPage::get(RecordID record_id)
 // Replace the record with the given data. Raises ValueError if it won't fit.
 void SlottedPage::put(RecordID record_id, const Dbt &data)
 {
-    u16 size, loc;
-    get_header(size, loc, record_id);
-    u16 new_size = (u16)data.get_size();
+    u16 header_size, loc;
+    get_header(header_size, loc, record_id);
+    u16 data_size = (u16)data.get_size();
 
-    if (new_size > size)
+    // That means this record is too large
+    if (data_size > header_size)
     {
-        u16 extra = new_size - size;
+        u16 extra = data_size - header_size;
         if (!this->has_room(extra))
         {
             throw DbBlockNoRoomError("Not enough room in block");
         }
-        slide(loc + new_size, loc + size);
-        // Copy data from [data] to [loc - extra, loc + new_size]
-        // Copy length is (extra + new_size)
-        memcpy(this->address(loc - extra), data.get_data(), extra + new_size);
+        // Put this record on index loc - extra and the header will be fulled.
+        slide(loc, loc - extra);
+        memcpy(this->address(loc - extra), data.get_data(), data_size);
     }
     else
     {
-        // Copy data from [data] to [loc, loc + new_size]
-        // Copy length is (new_size)
-        memcpy(this->address(loc), data.get_data(), new_size);
-        this->slide(loc + new_size, loc + size);
+        // Put this record on index loc. Normally one.
+        memcpy(this->address(loc), data.get_data(), data_size);
+        slide(loc + data_size, loc + header_size);
     }
-
-    get_header(size, loc, record_id);
-    put_header(record_id, new_size, loc);
+    get_header(header_size, loc, record_id);
+    put_header(record_id, data_size, loc);
 }
 
 // Mark the given id as deleted by changing its size to zero and its location to 0.
@@ -115,7 +111,7 @@ void SlottedPage::del(RecordID record_id)
     u16 size, loc;
     get_header(size, loc, record_id);
     put_header(record_id, 0, 0);
-    this->slide(loc, loc + size);
+    slide(loc, loc + size);
 }
 
 // Sequence of all non-deleted record ids.
@@ -161,22 +157,25 @@ bool SlottedPage::has_room(u_int16_t size)
 }
 
 /**If start < end, then remove data from offset start up to but not including offset end by sliding data
-            that is to the left of start to the right. If start > end, then make room for extra data from end to start
+            that is to the left of start to the right.
+If start > end, then make room for extra data from end to start
             by sliding data that is to the left of start to the left.
             Also fix up any record headers whose data has slid. Assumes there is enough room if it is a left
             shift (end < start).**/
 void SlottedPage::slide(u_int16_t start, u_int16_t end)
 {
-    u16 shift = end - start;
+    int shift = end - start;
+    // u16 shift = end - start; We need int instead of u16
     if (shift == 0)
     {
         return;
     }
 
     // slide data
-    // Copy data from [end_free + 1 , end_free + 1 + shift] to [end_free + 1 + shift, end_free + end]
+    // Copy data from [end_free + 1] to [end_free + 1 + shift]
     // Copy length is (end - start)
-    memcpy(this->address(this->end_free + 1 + shift), this->address(this->end_free + 1), shift);
+    int bytes = start - (this->end_free + 1U);
+    memcpy((this->address((u16)(this->end_free + 1 + shift))), (this->address((u16)this->end_free + 1)), bytes);
 
     // fix up headers
     u16 size, loc;
@@ -190,6 +189,7 @@ void SlottedPage::slide(u_int16_t start, u_int16_t end)
             put_header(record_id, size, loc);
         }
     }
+    delete record_ids;
     this->end_free += shift;
     put_header();
 }
@@ -448,7 +448,9 @@ Handles *HeapTable::select(const ValueDict *where)
         RecordIDs *record_ids = block->ids();
         for (auto const &record_id : *record_ids)
             handles->push_back(Handle(block_id, record_id));
+        delete record_ids;
     }
+    delete block_ids;
     return handles;
 }
 
@@ -651,11 +653,20 @@ bool test_slotted_page()
     char block[DbBlock::BLOCK_SZ];
     Dbt data(block, sizeof(block));
     SlottedPage slot(data, 1, true);
-    std::cout << "Initialize one" << std::endl;
+
+    // Initilize objects
+    RecordID id;
+    Dbt *get_dbt;
 
     // Additions
-    RecordID id;
     char record1[] = "Hello";
+    char record2[] = "Wow";
+    char record3[] = "George";
+    std::vector<std::string> records;
+    records.push_back(record1);
+    records.push_back(record2);
+
+    //Add record1 "Hello"
     Dbt rec1_dbt(record1, sizeof(record1));
     id = slot.add(&rec1_dbt);
     if (id != 1)
@@ -663,9 +674,8 @@ bool test_slotted_page()
         std::cout << "Wrong Add record1 id" << std::endl;
         return false;
     }
-    std::cout << "Succeed Add record1 id" << std::endl;
 
-    char record2[] = "Wow";
+     //Add record2 "Wow"
     Dbt rec2_dbt(record2, sizeof(record2));
     id = slot.add(&rec2_dbt);
     if (id != 2)
@@ -673,15 +683,97 @@ bool test_slotted_page()
         std::cout << "Wrong Add record2 id" << std::endl;
         return false;
     }
-    std::cout << "Succeed Add record2 id" << std::endl;
 
-    Dbt *get2_dbt = slot.get(id);
-    if (get2_dbt->get_data() != record2)
+    // Get record 2
+    get_dbt = slot.get(id);
+    string expected = record2;
+    string actual = (char *)get_dbt->get_data();
+    // if (record2 != (char *) get_dbt->get_data())
+    // The char value is a little different
+    if (actual != expected)
     {
         std::cout << "Wrong Get record2" << std::endl;
         return false;
     }
-    std::cout << "Right Get record2" << std::endl;
+
+    // Put Record 1
+    char record1_put[] = "Goodbye";
+    rec1_dbt = Dbt(record1_put, sizeof(record1_put));
+    slot.put(1, rec1_dbt);
+
+    // Check id 1 and id 2
+    // Get record 1
+    get_dbt = slot.get(1);
+    expected = record1_put;
+    actual = (char *)get_dbt->get_data();
+    if (actual != expected)
+    {
+        std::cout << "Wrong Get record1" << std::endl;
+        return false;
+    }
+    delete get_dbt;
+
+    // Get record 2
+    get_dbt = slot.get(2);
+    expected = record2;
+    actual = (char *)get_dbt->get_data();
+    if (actual != expected)
+    {
+        std::cout << "Wrong Get record2" << std::endl;
+        return false;
+    }
+    delete get_dbt;
+
+    // iteration
+    RecordIDs *ids = slot.ids();
+    int i = 1;
+    for (RecordID id : *ids)
+    {
+        if (i != id)
+        {
+            std::cout << "Wrong id" << i << id << std::endl;
+            return false;
+        }
+        i++;
+    }
+
+    // deletion
+    slot.del(1);
+    ids = slot.ids();
+    if (ids->size() != 1 || ids->at(0) != 2)
+    {
+        std::cout << "Wrong id" << i << id << std::endl;
+        return false;
+    }
+
+    // Get record 2 should be "Wow"
+    get_dbt = slot.get(2);
+    expected = record2;
+    actual = (char *)get_dbt->get_data();
+    if (actual != expected)
+    {
+        std::cout << "Wrong Get record2 After deleting" << std::endl;
+        return false;
+    }
+
+    //Add record3 "George"
+    Dbt rec3_dbt = Dbt(record3, sizeof(record3));
+    id = slot.add(&rec3_dbt);
+    if (id != 3)
+    {
+        std::cout << "Wrong Add record1 id" << std::endl;
+        return false;
+    }
+
+    // Chech data consistency
+    // char data_test = '\x00\x03\x00\x13\x00\x00\x00\x00\x00\x04\x00\x1a\x00\x06\x00\x14\x00\x00\x00WGeorgeWow!';
+    // std::cout << slot.get_data() << std::endl;
+    // std::cout << data_test << std::endl;
+    // if (data != slot.get_data)
+    // {
+    //     std::cout << "Wrong data" << std::endl;
+    //     return false;
+    // }
 
     return true;
 }
