@@ -246,8 +246,19 @@ void HeapFile::create(void)
 // Delete the physical file
 void HeapFile::drop(void)
 {
+    std::string path(dbfilename); 
+    auto env = db.get_env();
+    if (env != nullptr)
+    {
+        const char *p = {0};
+        env->get_home(&p);
+        path.clear();
+        path.append(p).append("/").append(dbfilename);
+    }
+
     close();
-    db.remove(this->dbfilename.c_str(), nullptr, 0);
+    //db.remove(this->dbfilename.c_str(), nullptr, 0);
+    std::remove(path.c_str());
     // virtual int remove(const char *, const char *, u_int32_t);
 }
 
@@ -328,16 +339,15 @@ void HeapFile::db_open(uint flags)
     }
     // this->db.set_re_len(this->block_size);//record length - will be ignored if file already exists
     this->db.set_re_len(DbBlock::BLOCK_SZ); // record length - will be ignored if file already exists
-
-    this->dbfilename = "./" + this->name + ".db";                                    // The DbEnv path implement later
-    this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0); // we always use record number files
+    this->dbfilename = this->name + ".db";                                    // The DbEnv path implement later
+    //this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0); // we always use record number files
+    this->db.open(nullptr, "/home/st/vlolakumarijayachand/cpsc5300/data/_test_create_drop_cpp.db", nullptr, DB_RECNO, flags, 0);
     // Db::open(DbTxn*, const char*, const char*, DBTYPE, u_int32_t, int)????
-
-    DB_BTREE_STAT *stat;
-    this->db.stat(nullptr, &stat, flags);
+    DB_BTREE_STAT stat;
+    this->db.stat(nullptr, &stat, DB_FAST_STAT);
+    std::cout << "Created DB:" << dbfilename << std::endl;
     // virtual int stat(DbTxn *, void *sp, u_int32_t flags);
-
-    this->last = stat->bt_ndata;
+    this->last = stat.bt_ndata;
     // u_int32_t bt_ndata;		/* Number of data items. */
 
     this->closed = false;
@@ -636,11 +646,15 @@ bool test_heap_storage()
     ValueDict *result = table.project((*handles)[0]);
     std::cout << "project ok" << std::endl;
     Value value = (*result)["a"];
-    if (value.n != 12)
-        return false;
+    if (value.n != 12){
+        table.drop();
+    	return false;
+    }
     value = (*result)["b"];
-    if (value.s != "Hello!")
-        return false;
+    if (value.s != "Hello!"){
+        table.drop();
+		return false;
+    }
     table.drop();
 
     return true;
