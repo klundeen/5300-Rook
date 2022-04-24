@@ -628,7 +628,6 @@ ValueDict *HeapTable::unmarshal(Dbt *data)
         }
         (*row)[column_name] = value;
     }
-    delete bytes;
     return row;
 }
 
