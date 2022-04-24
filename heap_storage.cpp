@@ -563,9 +563,8 @@ Dbt *HeapTable::marshal(const ValueDict *row)
     }
     char *right_size_bytes = new char[offset];
     memcpy(right_size_bytes, bytes, offset);
-    delete[] bytes;
-    //delete right_size_bytes;
     Dbt *data = new Dbt(right_size_bytes, offset);
+    delete[] bytes;
     return data;
 }
 
