@@ -122,8 +122,9 @@ RecordIDs *SlottedPage::ids(void)
     for (RecordID record_id = 1; record_id <= this->num_records; record_id++)
     {
         get_header(size, loc, record_id);
-        if (loc != 0)
+        if (loc != 0){
             record_ids->push_back(record_id);
+        }
     }
     return record_ids;
 }
@@ -157,11 +158,11 @@ bool SlottedPage::has_room(u_int16_t size)
 }
 
 /**If start < end, then remove data from offset start up to but not including offset end by sliding data
-            that is to the left of start to the right.
-If start > end, then make room for extra data from end to start
-            by sliding data that is to the left of start to the left.
-            Also fix up any record headers whose data has slid. Assumes there is enough room if it is a left
-            shift (end < start).**/
+    that is to the left of start to the right.
+    If start > end, then make room for extra data from end to start
+    by sliding data that is to the left of start to the left.
+    Also fix up any record headers whose data has slid. Assumes there is enough room if it is a left
+    shift (end < start).**/
 void SlottedPage::slide(u_int16_t start, u_int16_t end)
 {
     int shift = end - start;
@@ -212,23 +213,16 @@ void *SlottedPage::address(u16 offset)
     return (void *)((char *)this->block.get_data() + offset);
 }
 
-// //Count the total records
+//Already constructed
 // u16 SlottedPage::size() {
-//     u16 size, loc;
-//     u16 count = 0;
-//     for (RecordID record_id = 1; record_id <= this->num_records; record_id++) {
-//         get_header(size, loc, record_id);
-//         if (loc != 0)
-//             count++;
-//     }
-//     return count;
 // }
 
 /**
  * @class HeapFile - heap file implementation of DbFile
  *
  * Heap file organization. Built on top of Berkeley DB RecNo file. There is one of our
-        database blocks for each Berkeley DB record in the RecNo file. In this way we are using Berkeley DB
+        database blocks for each Berkeley DB record in the RecNo file. 
+        In this way we are using Berkeley DB
         for buffer management and file management.
         Uses SlottedPage for storing records within blocks.
 **/
@@ -246,21 +240,6 @@ void HeapFile::create(void)
 // Delete the physical file
 void HeapFile::drop(void)
 {
-    // std::string path(dbfilename);
-    // auto env = db.get_env();
-    // if (env != nullptr)
-    // {
-    //     const char *p = {0};
-    //     env->get_home(&p);
-    //     path.clear();
-    //     path.append(p).append("/").append(dbfilename);
-    // }
-
-    // close();
-    // db.remove(this->dbfilename.c_str(), nullptr, 0);
-    // std::remove(path.c_str());
-    // virtual int remove(const char *, const char *, u_int32_t);
-
     close();
     Db db(_DB_ENV, 0);
     db.remove(this->dbfilename.c_str(), nullptr, 0);
@@ -304,7 +283,6 @@ SlottedPage *HeapFile::get(BlockID block_id)
     Dbt key(&block_id, sizeof(block_id));
     Dbt data;
     this->db.get(nullptr, &key, &data, 0);
-    // virtual int get(DbTxn *txnid, Dbt *key, Dbt *data, u_int32_t flags);
     return new SlottedPage(data, block_id, false); // Not a new one;
 }
 
@@ -315,7 +293,6 @@ void HeapFile::put(DbBlock *block)
     BlockID block_id(block->get_block_id());
     Dbt blockid(&block_id, sizeof(block_id));
     this->db.put(nullptr, &blockid, block->get_block(), 0);
-    // virtual int put(DbTxn *, Dbt *, Dbt *, u_int32_t);
 }
 
 // Sequence of all block ids
@@ -344,7 +321,6 @@ void HeapFile::db_open(uint flags)
     const char *path = nullptr;
     _DB_ENV->get_home(&path);
     this->dbfilename = "./" + this->name + ".db"; // Get a db::open Is a directory otherwise
-    // this->db.remove((this->dbfilename).c_str(), nullptr, flags);
     this->db.open(nullptr, (this->dbfilename).c_str(), nullptr, DB_RECNO, flags, 0644);
     DB_BTREE_STAT *stat;
     this->db.stat(nullptr, &stat, DB_FAST_STAT);
@@ -359,9 +335,8 @@ void HeapFile::db_open(uint flags)
 // HeapTable constructor
 // Just size. Heapfile doesn't contians DB_BLOCK_SIZE
 HeapTable::HeapTable(Identifier table_name, ColumnNames column_names,
-                     ColumnAttributes column_attributes) : DbRelation(table_name, column_names,
-                                                                      column_attributes),
-                                                           file(table_name) {}
+ColumnAttributes column_attributes) : DbRelation(table_name, column_names,
+column_attributes),file(table_name) {}
 
 // Execute: CREATE TABLE <table_name> ( <columns> )
 // Is not responsible for metadata storage or validation.
@@ -410,7 +385,6 @@ Handle HeapTable::insert(const ValueDict *row)
 {
     open();
     return Handle(append(validate(row)));
-    ;
 }
 
 // Expect new_values to be a dictionary with column name keys.
@@ -494,7 +468,7 @@ ValueDict *HeapTable::project(Handle handle, const ColumnNames *column_names)
     RecordID record_id = handle.second;
     SlottedPage *block = file.get(block_id);
     Dbt *data = block->get(record_id);
-    ValueDict *row = unmarshal(data); 
+    ValueDict *row = unmarshal(data);
     if (column_names->empty())
     {
         return row;
@@ -518,9 +492,6 @@ ValueDict *HeapTable::validate(const ValueDict *row)
     for (auto const &column_name : this->column_names)
     {
         Value value;
-        // ValueDict::iterator it;
-        //???std::_Rb_tree_iterator<std::pair<const Identifier, Value>>" has no member "begin"
-        //???class "std::_Rb_tree_const_iterator<std::pair<const Identifier, Value>>" has no member "end"
         ValueDict::const_iterator it = row->find(column_name);
         if (it == row->end())
         {
@@ -539,7 +510,6 @@ ValueDict *HeapTable::validate(const ValueDict *row)
 Handle HeapTable::append(const ValueDict *row)
 {
     Dbt *data = marshal(row);
-    // u_int32_t from heap_storage.h HeapFile
     SlottedPage *block = this->file.get(this->file.get_last_block_id());
     RecordID recordID;
     try
@@ -594,6 +564,7 @@ Dbt *HeapTable::marshal(const ValueDict *row)
     char *right_size_bytes = new char[offset];
     memcpy(right_size_bytes, bytes, offset);
     delete[] bytes;
+    //delete right_size_bytes;
     Dbt *data = new Dbt(right_size_bytes, offset);
     return data;
 }
@@ -619,7 +590,10 @@ ValueDict *HeapTable::unmarshal(Dbt *data)
         {
             u16 size = *(u16 *)(bytes + offset);
             offset += sizeof(u16);
-            value.s = string(bytes + offset);
+            char buffer[size];
+            memcpy(buffer, bytes + offset, size);//Idea from marshal
+            buffer[size] = (char)0;
+            value.s = string(buffer);  // assume ascii for now
             offset += size;
         }
         else
