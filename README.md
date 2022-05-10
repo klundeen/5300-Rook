@@ -4,8 +4,8 @@
 #### Zeng, Zhicong
 #### Lolakumari Jayachandran, Vindhya Nair
 ## Second Sprint Members:
-### Terence Leung
-### William Zhong
+#### Terence Leung
+#### William Zhong
 
 # MileStones
 - <code>Milestone1</code> is playing around with the AST returned by the HyLine parser and general setup of the command loop. Usage (argument is database directory)(command valgrind checks memory):
