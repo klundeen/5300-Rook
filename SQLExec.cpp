@@ -188,7 +188,7 @@ QueryResult *SQLExec::create(const CreateStatement *statement) {
 // DROP ...
 QueryResult *SQLExec::drop(const DropStatement *statement) 
 {
-    Identifier name = statement->name;
+    Identifier table_name = statement->name;
 
     // Check the table is not a schema table
     if(table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
@@ -197,13 +197,13 @@ QueryResult *SQLExec::drop(const DropStatement *statement)
     }
     
     // get the table
-    DbRelation &table = SQLExec::tables->get_table(name);
+    DbRelation &table = SQLExec::tables->get_table(table_name);
 
     // remove table
     table.drop();
 
     ValueDict where;
-    where["table_name"] = Value(name);
+    where["table_name"] = Value(table_name);
 
     // get the columns
     DbRelation &columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
@@ -218,7 +218,7 @@ QueryResult *SQLExec::drop(const DropStatement *statement)
     // finally, remove from table schema
     SQLExec::tables->del(*SQLExec::tables->select(&where)->begin());
 
-    return new QueryResult("dropped" + name);
+    return new QueryResult("dropped" + table_name);
 }
 
 QueryResult *SQLExec::show(const ShowStatement *statement) 
