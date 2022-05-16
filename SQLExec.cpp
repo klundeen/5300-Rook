@@ -65,7 +65,10 @@ QueryResult::~QueryResult()
 
 
 QueryResult *SQLExec::execute(const SQLStatement *statement) {
-    // FIXME: initialize _tables table, if not yet present
+    if (SQLExec::tables == nullptr)
+    {
+        SQLExec::tables = new Tables();
+    }
 
     try {
         switch (statement->type()) {
@@ -101,6 +104,10 @@ SQLExec::column_definition(const ColumnDefinition *col, Identifier &column_name,
 }
 
 QueryResult *SQLExec::create(const CreateStatement *statement) {
+    if (statement->type != CreateStatement::kTable)
+    {
+        return new QueryResult("Invalid create type");
+    }
     if (statement->type != CreateStatement::kTable)
     {
         return new QueryResult("Invalid create type");
