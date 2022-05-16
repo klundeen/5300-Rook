@@ -108,10 +108,6 @@ QueryResult *SQLExec::create(const CreateStatement *statement) {
     {
         return new QueryResult("Invalid create type");
     }
-    if (statement->type != CreateStatement::kTable)
-    {
-        return new QueryResult("Invalid create type");
-    }
     // Update schema
     Identifier table_name = statement->tableName;
     ValueDict row;
