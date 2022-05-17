@@ -296,3 +296,11 @@ QueryResult *SQLExec::show_columns(const ShowStatement *statement)
     delete handles;
     return new QueryResult(column_names, column_attributes, rows, " successfully returned " + to_string(count) + " rows");
 }
+
+QueryResult *SQLExec::show_index(const ShowStatement *statement) {
+     return new QueryResult("show index not implemented"); // FIXME
+}
+
+QueryResult *SQLExec::drop_index(const DropStatement *statement) {
+    return new QueryResult("drop index not implemented");  // FIXME
+}
