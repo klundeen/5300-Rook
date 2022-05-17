@@ -33,6 +33,9 @@ ostream &operator<<(ostream &out, const QueryResult &qres)
                     case ColumnAttribute::TEXT:
                         out << "\"" << value.s << "\"";
                         break;
+                    case ColumnAttribute::BOOLEAN:
+                        out << (value.n == 0 ? "false" : "true");
+                        break;
                     default:
                         out << "???";
                 }
