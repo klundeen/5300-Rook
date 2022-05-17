@@ -99,3 +99,8 @@ protected:
     static void
     column_definition(const hsql::ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute);
 };
+
+// Test cases from Peacock, can also be found on Canvas under Milestone3 and Milestone4
+bool test_sqlexec_table();
+bool test_sqlexec_index();
+std::string test_logic(const hsql::SQLStatement *statement);
