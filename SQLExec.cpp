@@ -124,7 +124,6 @@ QueryResult *SQLExec::create(const CreateStatement *statement)
     {
         return new QueryResult("creating a type that isn't supported right now");
     }
-  
 }
 
 QueryResult *SQLExec::create_table(const CreateStatement *statement) 
@@ -256,14 +255,24 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement)
 // DROP ...
 QueryResult *SQLExec::drop(const DropStatement *statement) 
 {
+    if (statement->type == DropStatement::kTable)
+    {
+        return drop_table(statement);
+    }
+    else if (statement->type == DropStatement::kIndex)
+    {
+        return drop_index(statement);
+    }
+    else
+    {
+        return new QueryResult("creating a type that isn't supported right now");
+    }
+}
+
+QueryResult *SQLExec::drop_table(const DropStatement *statement) 
+{
     Identifier table_name = statement->name;
 
-    // Check the table is not a schema table
-    if(table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
-    {
-        return new QueryResult("Cannot drop a schema table!");
-    }
-    
     // get the table
     DbRelation &table = SQLExec::tables->get_table(table_name);
 
@@ -287,6 +296,29 @@ QueryResult *SQLExec::drop(const DropStatement *statement)
     SQLExec::tables->del(*SQLExec::tables->select(&where)->begin());
 
     return new QueryResult("dropped" + table_name);
+}
+
+QueryResult *SQLExec::drop_index(const DropStatement *statement) 
+{
+    //follow the same idea of dropping table. 
+    Identifier table_name = statement->name;
+    Identifier indexName = statement->indexName;
+
+    DbIndex &index = SQLExec::indices->get_index(table_name, indexName);
+    index.drop();
+
+    ValueDict where;
+    where["table_name"] = Value(table_name);
+    where["index_name"] = Value(indexName);
+    Handles *handles = SQLExec::indices->select(&where);
+    
+    for (auto const &handle : *handles)
+    {
+        SQLExec::indices->del(handle);
+    }
+    delete handles;
+
+    return new QueryResult("dropped index " + indexName + " from " + table_name); 
 }
 
 
@@ -365,7 +397,7 @@ QueryResult *SQLExec::show_columns(const ShowStatement *statement)
     }
 
     delete handles;
-    return new QueryResult(column_names, column_attributes, rows, " successfully returned " + to_string(count) + " rows");
+    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(count) + " rows");
 }
 
 QueryResult *SQLExec::show_index(const ShowStatement *statement) 
@@ -396,9 +428,5 @@ QueryResult *SQLExec::show_index(const ShowStatement *statement)
         rows->push_back(row);
     }
     delete handles;
-    return new QueryResult(column_names, column_attributes, rows, " successfully returned " + to_string(size) + " rows");
-}
-
-QueryResult *SQLExec::drop_index(const DropStatement *statement) {
-    return new QueryResult("drop index not implemented");  // FIXME
+    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
 }
