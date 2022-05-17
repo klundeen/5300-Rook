@@ -602,7 +602,6 @@ bool test_sqlexec_index()
                         cout << "query_result  " << str2 << endl;
                         cout << "results[i]  " << str3 << endl;
                         passed = false;
-                        return false;
                     }
                 }
                 catch (SQLExecError &e)
