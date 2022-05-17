@@ -444,3 +444,212 @@ QueryResult *SQLExec::show_index(const ShowStatement *statement)
     delete handles;
     return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
 }
+
+
+
+// Test cases from Peacock, can also be found on Canvas under Milestone3
+// Output matches Canvas Milestone3 test cases expected output
+// For accurate testing, make sure no tables present prior to running test cases
+// Test Function for SQLExec class
+bool test_sqlexec_table()
+{
+    const int num_queries = 11;
+    const string queries[num_queries] = {"show tables",
+                                         "show columns from _tables",
+                                         "show columns from _columns",
+                                         "create table foo (id int, data text, x integer, y integer, z integer)",
+                                         "create table foo (goober int)",
+                                         "create table goo (x int, x text)",
+                                         "show tables",
+                                         "show columns from foo",
+                                         "drop table foo",
+                                         "show tables",
+                                         "show columns from foo"};
+    bool passed = true;
+    const string results[num_queries] = {"SHOW TABLES table_name  successfully returned 0 rows",
+                                         "SHOW COLUMNS FROM _tables table_name column_name data_type _tables table_name TEXT successfully returned 1 rows",
+                                         "SHOW COLUMNS FROM _columns   table_name column_name data_type _columns   table_name TEXT_columns column_name  TEXT_columns data_type TEXT   successfully returned 3 rows",
+                                         "CREATE TABLE foo (id INT, data TEXT, x INT, y INT, z INT)  created foo",
+                                         "CREATE TABLE foo (goober INT)  Error: DbRelationError: foo already exists",
+                                         "Error: DbRelationError: duplicate column goo.x",
+                                         "SHOW TABLES  table_name foo successfully returned 1 rows",
+                                         "SHOW COLUMNS FROM foo  table_name column_name data_type foo id INT foo data TEXT  foo x INT  foo y INT  foo z INT  successfully returned 5 rows",
+                                         "DROP TABLE foo   dropped foo",
+                                         "SHOW TABLES  table_name  successfully returned 0 rows",
+                                         "SHOW COLUMNS FROM footable_name column_name data_type  successfully returned 0 rows"};
+
+    for (int i = 0; i < num_queries; i++)
+    {
+        SQLParserResult *result = SQLParser::parseSQLString(queries[i]);
+        if (result->isValid())
+        {
+            // if result is valid, pass result to our own execute function
+            for (long unsigned int j = 0; j < result->size(); j++)
+            {
+                const SQLStatement *statement = result->getStatement(j);
+                try
+                {
+                    string str1 = test_logic((const SQLStatement *)statement);
+                    string str2 = str1;
+                    str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
+                               { return !(isalnum(c)); }),
+                               str2.end());
+                    string str3 = results[i];
+                    str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
+                               { return !(isalnum(c)); }),
+                               str3.end());
+                    // ADDITION: make test cases case-insensitive
+                    for(long unsigned int k = 0; k < str2.length(); k++)
+                    {
+                        str2[k] = tolower(str2[k]);
+                    }
+                    for(long unsigned int k = 0; k < str3.length(); k++)
+                    {
+                        str3[k] = tolower(str3[k]);
+                    }
+                    if (str2 == str3)
+                    {
+                        cout << "query_result  " << str2 << endl;
+                        cout << queries[i] << endl;
+                        cout << str1 << endl;
+                    }
+                    else
+                    {
+                        cout << "Unexpected query  " << queries[i] << endl;
+                        cout << "query_result  " << str2 << endl;
+                        cout << "results[i]  " << str3 << endl;
+                        passed = false;
+                    }
+                }
+                catch (SQLExecError &e)
+                {
+                    cout << "Error: " << e.what() << endl;
+                }
+            }
+        }
+        else
+        {
+            passed = false;
+            cout << "Invalid SQL" << endl;
+        }
+        delete result;
+    }
+    return passed;
+}
+
+// Test cases from Peacock, can also be found on Canvas under Milestone4
+// Output matches Canvas Milestone4 test cases expected output
+// For accurate testing, make sure no tables present prior to running test cases
+// Test Function for SQLExec class
+bool test_sqlexec_index()
+{
+    const int num_queries = 18;
+    const string queries[num_queries] = {"create table goober (x integer, y integer, z integer)",
+                                         "show tables",
+                                         "show columns from goober",
+                                         "create index fx on goober (x,y)",
+                                         "show index from goober",
+                                         "drop index fx from goober",
+                                         "show index from goober",
+                                         "create index fx on goober (x)",
+                                         "show index from goober",
+                                         "create index fx on goober (y,z)",
+                                         "show index from goober",
+                                         "create index fyz on goober (y,z)",
+                                         "show index from goober",
+                                         "drop index fx from goober",
+                                         "show index from goober",
+                                         "drop index fyz from goober",
+                                         "show index from goober",
+                                         "drop table goober"};
+    bool passed = true;
+    const string results[num_queries] = {"CREATE TABLE goober x INT yINT zINT created goober",
+                                         "SHOW TABLES table_name goober successfully returned 1 rows",
+                                         "SHOW COLUMNS FROM goober table_name column_name data_type goober x INT goober y INT goober z INT successfully returned 3 rows",
+                                         "CREATE INDEX fx ON goober USING BTREE x y created index fx",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fx y 2 BTREE true successfully returned 2 rows",
+                                         "DROP INDEX fx FROM goober dropped index fx",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
+                                         "CREATE INDEX fx ON goober USING BTREE x created index fx",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
+                                         "CREATE INDEX fx ON goober USING BTREE (y, z) Error: DbRelationError: duplicate index goober fx",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
+                                         "CREATE INDEX fyz ON goober USING BTREE y z created index fyz",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 3 rows",
+                                         "DROP INDEX fx FROM goober dropped index fx",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 2 rows",
+                                         "DROP INDEX fyz FROM goober dropped index fyz",
+                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
+                                         "DROP TABLE goober dropped goober"};
+
+    for (int i = 0; i < num_queries; i++)
+    {
+        SQLParserResult *result = SQLParser::parseSQLString(queries[i]);
+        if (result->isValid())
+        {
+            // if result is valid, pass result to our own execute function
+            for (long unsigned int j = 0; j < result->size(); j++)
+            {
+                const SQLStatement *statement = result->getStatement(j);
+                try
+                {
+                    string str1 = test_logic((const SQLStatement *)statement);
+                    string str2 = str1;
+                    str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
+                               { return !(isalnum(c)); }),
+                               str2.end());
+                    string str3 = results[i];
+                    str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
+                               { return !(isalnum(c)); }),
+                               str3.end());
+                    // ADDITION: make test cases case-insensitive
+                    for(long unsigned int k = 0; k < str2.length(); k++)
+                    {
+                        str2[k] = tolower(str2[k]);
+                    }
+                    for(long unsigned int k = 0; k < str3.length(); k++)
+                    {
+                        str3[k] = tolower(str3[k]);
+                    }
+                    if (str2 == str3)
+                    {
+                        cout << queries[i] << endl;
+                        cout << str1 << endl;
+                    }
+                    else
+                    {
+                        cout << "Unexpected query  " << queries[i] << endl;
+                        cout << "query_result  " << str2 << endl;
+                        cout << "results[i]  " << str3 << endl;
+                        passed = false;
+                    }
+                }
+                catch (SQLExecError &e)
+                {
+                    cout << "Error: " << e.what() << endl;
+                }
+            }
+        }
+        else
+        {
+            passed = false;
+            cout << "Invalid SQL" << endl;
+        }
+        delete result;
+    }
+    return passed;
+}
+
+// Test cases from Peacock, can also be found on Canvas under Milestone3 and Milestone4
+string test_logic(const SQLStatement *statement)
+{
+    QueryResult *query_result = SQLExec::execute(statement);
+    std::stringstream buffer;
+    buffer << ParseTreeToString::statement(statement) << std::endl;
+    buffer << *query_result << std::endl;
+    string str1 = buffer.str();
+
+    delete query_result;
+    query_result = nullptr;
+    return buffer.str();
+}
