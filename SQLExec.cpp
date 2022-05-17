@@ -289,6 +289,8 @@ QueryResult *SQLExec::drop(const DropStatement *statement)
     return new QueryResult("dropped" + table_name);
 }
 
+
+
 QueryResult *SQLExec::show(const ShowStatement *statement) 
 {
     switch(statement->type)
@@ -318,7 +320,7 @@ QueryResult *SQLExec::show_tables()
     // Get all entries from the tables
     ValueDicts *rows = new ValueDicts();
     Handles *handles = SQLExec::tables->select();
-    int num_entries = handles->size() - 2;
+    int size = 0;
 
     for(auto const &handle : *handles)
     {
@@ -326,13 +328,14 @@ QueryResult *SQLExec::show_tables()
         ValueDict *row = SQLExec::tables->project(handle, column_names);
         // Check if table name is already in the schema
         Identifier table_name = row->at("table_name").s;
-        if(table_name != Tables::TABLE_NAME && table_name != Columns::TABLE_NAME)
+        if(table_name != Tables::TABLE_NAME && table_name != Columns::TABLE_NAME && table_name != Indices::TABLE_NAME)
         {
             rows->push_back(row);
+            size++;
         }
     }
     delete handles;
-    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(num_entries) + " rows");
+    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
 }
 
 QueryResult *SQLExec::show_columns(const ShowStatement *statement) 
