@@ -211,7 +211,7 @@ QueryResult *SQLExec::create_table(const CreateStatement *statement)
         }
         throw;
     }
-    return new QueryResult("Created " + table_name);
+    return new QueryResult("created " + table_name);
 }
 
 QueryResult *SQLExec::create_index(const CreateStatement *statement)
@@ -306,7 +306,7 @@ QueryResult *SQLExec::drop_table(const DropStatement *statement)
     // finally, remove from table schema
     SQLExec::tables->del(*SQLExec::tables->select(&where)->begin());
 
-    return new QueryResult("dropped" + table_name);
+    return new QueryResult("dropped " + table_name);
 }
 
 QueryResult *SQLExec::drop_index(const DropStatement *statement) 
@@ -494,24 +494,14 @@ bool test_sqlexec_table()
                     string str1 = test_logic((const SQLStatement *)statement);
                     string str2 = str1;
                     str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
-                               { return !(isalnum(c)); }),
+                                         { return !(isalnum(c)); }),
                                str2.end());
                     string str3 = results[i];
                     str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
-                               { return !(isalnum(c)); }),
+                                         { return !(isalnum(c)); }),
                                str3.end());
-                    // ADDITION: make test cases case-insensitive
-                    for(long unsigned int k = 0; k < str2.length(); k++)
-                    {
-                        str2[k] = tolower(str2[k]);
-                    }
-                    for(long unsigned int k = 0; k < str3.length(); k++)
-                    {
-                        str3[k] = tolower(str3[k]);
-                    }
                     if (str2 == str3)
                     {
-                        cout << "query_result  " << str2 << endl;
                         cout << queries[i] << endl;
                         cout << str1 << endl;
                     }
@@ -539,9 +529,6 @@ bool test_sqlexec_table()
     return passed;
 }
 
-// Test cases from Peacock, can also be found on Canvas under Milestone4
-// Output matches Canvas Milestone4 test cases expected output
-// For accurate testing, make sure no tables present prior to running test cases
 // Test Function for SQLExec class
 bool test_sqlexec_index()
 {
@@ -568,19 +555,19 @@ bool test_sqlexec_index()
     const string results[num_queries] = {"CREATE TABLE goober x INT yINT zINT created goober",
                                          "SHOW TABLES table_name goober successfully returned 1 rows",
                                          "SHOW COLUMNS FROM goober table_name column_name data_type goober x INT goober y INT goober z INT successfully returned 3 rows",
-                                         "CREATE INDEX fx ON goober USING BTREE x y created index fx",
+                                         "CREATE INDEX fx ON goober USING BTREE fx ON goober USING BTREE xy Created new index fx",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fx y 2 BTREE true successfully returned 2 rows",
-                                         "DROP INDEX fx FROM goober dropped index fx",
+                                         "DROP goober dropped index fx from goober",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
-                                         "CREATE INDEX fx ON goober USING BTREE x created index fx",
+                                         "CREATE INDEX fx ON goober USING BTREE fx ON goober USING BTREE x Created new index fx",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
                                          "CREATE INDEX fx ON goober USING BTREE (y, z) Error: DbRelationError: duplicate index goober fx",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
-                                         "CREATE INDEX fyz ON goober USING BTREE y z created index fyz",
+                                         "CREATE INDEX fyz ON goober USING BTREE fyz ON goober USING BTREE yz Created new index fyz",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 3 rows",
-                                         "DROP INDEX fx FROM goober dropped index fx",
+                                         "DROP goober dropped index fx from goober",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 2 rows",
-                                         "DROP INDEX fyz FROM goober dropped index fyz",
+                                         "DROP goober dropped index fyz from goober",
                                          "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
                                          "DROP TABLE goober dropped goober"};
 
@@ -598,21 +585,12 @@ bool test_sqlexec_index()
                     string str1 = test_logic((const SQLStatement *)statement);
                     string str2 = str1;
                     str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
-                               { return !(isalnum(c)); }),
+                                         { return !(isalnum(c)); }),
                                str2.end());
                     string str3 = results[i];
                     str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
-                               { return !(isalnum(c)); }),
+                                         { return !(isalnum(c)); }),
                                str3.end());
-                    // ADDITION: make test cases case-insensitive
-                    for(long unsigned int k = 0; k < str2.length(); k++)
-                    {
-                        str2[k] = tolower(str2[k]);
-                    }
-                    for(long unsigned int k = 0; k < str3.length(); k++)
-                    {
-                        str3[k] = tolower(str3[k]);
-                    }
                     if (str2 == str3)
                     {
                         cout << queries[i] << endl;
@@ -624,6 +602,7 @@ bool test_sqlexec_index()
                         cout << "query_result  " << str2 << endl;
                         cout << "results[i]  " << str3 << endl;
                         passed = false;
+                        return false;
                     }
                 }
                 catch (SQLExecError &e)
@@ -642,7 +621,6 @@ bool test_sqlexec_index()
     return passed;
 }
 
-// Test cases from Peacock, can also be found on Canvas under Milestone3 and Milestone4
 string test_logic(const SQLStatement *statement)
 {
     QueryResult *query_result = SQLExec::execute(statement);
