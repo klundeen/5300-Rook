@@ -276,6 +276,12 @@ QueryResult *SQLExec::drop_table(const DropStatement *statement)
 {
     Identifier table_name = statement->name;
 
+    // Check the table is not a schema table
+    if(table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
+    {
+        return new QueryResult("Cannot drop a schema table!");
+    }
+
     // get the table
     DbRelation &table = SQLExec::tables->get_table(table_name);
 
