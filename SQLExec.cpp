@@ -313,8 +313,13 @@ QueryResult *SQLExec::drop_index(const DropStatement *statement)
     Identifier table_name = statement->name;
     Identifier indexName = statement->indexName;
 
-    DbIndex &index = SQLExec::indices->get_index(table_name, indexName);
+    try {
+        DbIndex &index = SQLExec::indices->get_index(table_name, indexName);
     index.drop();
+    }
+    catch(...) {
+        return new QueryResult("Index not found");
+    }
 
     ValueDict where;
     where["table_name"] = Value(table_name);
