@@ -5,6 +5,8 @@
  * start of this code provided by Professor Lundeen for milestone 3
  */
 #include "SQLExec.h"
+#include <sstream>
+#include "ParseTreeToString.h"
 
 using namespace std;
 using namespace hsql;
