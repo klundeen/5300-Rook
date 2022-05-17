@@ -19,6 +19,15 @@ There are some tests for SlottedPage and HeapTable. They can be invoked from the
 ```sql
 SQL> test
 ```
+There are additional tests for milestone 3 and 4 that can be used by using the <code>SQL</code> prompt:
+```sql
+SQL> test2
+SQL> test table
+SQL> test3
+SQL> test index
+```
+(test2 and test table are identitcal and test3 and test index are also identitcal... both ways of writing them results in invoking the same tests)
+
 Be aware that failed tests may leave garbage Berkeley DB files lingering in your data directory. If you don't care about any data in there, you are advised to just delete them all after a failed test.
 ```sh
 $ rm -f data/*
