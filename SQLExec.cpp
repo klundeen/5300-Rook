@@ -376,19 +376,24 @@ QueryResult *SQLExec::show_index(const ShowStatement *statement)
     column_names->push_back("index_type");
     column_names->push_back("is_unique");
 
+    ColumnAttributes *column_attributes = new ColumnAttributes;
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
+
     ValueDict where;
     where["table_name"] = Value(statement->tableName);
+
     Handles *handles = SQLExec::indices->select(&where);
-    u_long size = handles->size();
+    int size = handles->size();
 
     ValueDicts *rows = new ValueDicts();
+
     for (auto const &handle : *handles)
     {
         ValueDict *row = SQLExec::indices->project(handle, column_names);
         rows->push_back(row);
     }
     delete handles;
-    return new QueryResult(column_names, new ColumnAttributes(), rows, " successfully returned " + to_string(size) + " rows");
+    return new QueryResult(column_names, column_attributes, rows, " successfully returned " + to_string(size) + " rows");
 }
 
 QueryResult *SQLExec::drop_index(const DropStatement *statement) {
