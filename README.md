@@ -39,3 +39,6 @@ To run valgrind (files must be compiled with <code>-ggdb</code>):
 $ valgrind --leak-check=full --suppressions=valgrind.supp ./sql5300 data
 ```
 Note that we've added suppression for the known issues with the Berkeley DB library <em>vis-à-vis</em> valgrind.
+
+## Milestone 4 Handoff video
+https://seattleu.instructuremedia.com/embed/da9d1744-d4b1-491e-93ef-a27438903037
