@@ -11,24 +11,33 @@
 using namespace std;
 using namespace hsql;
 
-// define static data
+//define static data
 Tables *SQLExec::tables = nullptr;
 Indices *SQLExec::indices = nullptr;
 
-// make query result be printable
+/**
+ * output query result
+ * @param out output stream use to display the output
+ * @param qres the query result to be displayed as output
+ * @return the output stream of the query result
+ */
 ostream &operator<<(ostream &out, const QueryResult &qres) 
 {
-    if (qres.column_names != nullptr) {
+    if (qres.column_names != nullptr) 
+    {
         for (auto const &column_name: *qres.column_names)
             out << column_name << " ";
         out << endl << "+";
         for (unsigned int i = 0; i < qres.column_names->size(); i++)
             out << "----------+";
         out << endl;
-        for (auto const &row: *qres.rows) {
-            for (auto const &column_name: *qres.column_names) {
+        for (auto const &row: *qres.rows) 
+        {
+            for (auto const &column_name: *qres.column_names) 
+            {
                 Value value = row->at(column_name);
-                switch (value.data_type) {
+                switch (value.data_type) 
+                {
                     case ColumnAttribute::INT:
                         out << value.n;
                         break;
@@ -50,6 +59,9 @@ ostream &operator<<(ostream &out, const QueryResult &qres)
     return out;
 }
 
+/**
+ * deconstructor of queryresult
+ */
 QueryResult::~QueryResult() 
 {
     if (column_names != nullptr)
@@ -70,9 +82,14 @@ QueryResult::~QueryResult()
     }
 }
 
-
+/**
+ * execute function to handle execution of sql statement
+ * @param statement a SQL statement to be exectued 
+ * @return the query result of the sql statement after execution
+ */
 QueryResult *SQLExec::execute(const SQLStatement *statement) 
 {
+    //Making sure tables and dices isn't null when handling
     if (SQLExec::tables == nullptr)
     {
         SQLExec::tables = new Tables();
@@ -83,8 +100,11 @@ QueryResult *SQLExec::execute(const SQLStatement *statement)
         SQLExec::indices = new Indices();
     }
 
-    try {
-        switch (statement->type()) {
+    //currently handles create, drop and show sql statements, others are not implemented 
+    try 
+    {
+        switch (statement->type()) 
+        {
             case kStmtCreate:
                 return create((const CreateStatement *) statement);
             case kStmtDrop:
@@ -94,29 +114,45 @@ QueryResult *SQLExec::execute(const SQLStatement *statement)
             default:
                 return new QueryResult("not implemented");
         }
-    } catch (DbRelationError &e) {
+    } 
+    catch (DbRelationError &e) 
+    {
         throw SQLExecError(string("DbRelationError: ") + e.what());
     }
 }
 
+/**
+ * column data type can be defined 
+ * @param col column definition information
+ * @param column_name the column name of the column
+ * @param column_attribute column attribute that can set the column type
+ */
 void SQLExec::column_definition(const ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute) 
 {
     column_name = col->name;
+    //currently only support INT and TEXT type
     switch (col->type)
     {
-    case ColumnDefinition::INT:
-        column_attribute.set_data_type(ColumnAttribute::INT);
-        break;
-    case ColumnDefinition::TEXT:
-        column_attribute.set_data_type(ColumnAttribute::TEXT);
-        break;
-    default:
-        throw SQLExecError("invalid ColumnAttribute type");
+        case ColumnDefinition::INT:
+            column_attribute.set_data_type(ColumnAttribute::INT);
+            break;
+        case ColumnDefinition::TEXT:
+            column_attribute.set_data_type(ColumnAttribute::TEXT);
+            break;
+        default:
+            throw SQLExecError("invalid ColumnAttribute type");
     }
 }
 
+
+/**
+ * create function to handle execution of any create sql statement
+ * @param statement a create SQL statement to be exectued 
+ * @return the query result for execution of sql create statement
+ */
 QueryResult *SQLExec::create(const CreateStatement *statement) 
 {
+    //currently only support creating table and indices
     if (statement->type == CreateStatement::kTable)
     {
         return create_table(statement);
@@ -131,9 +167,14 @@ QueryResult *SQLExec::create(const CreateStatement *statement)
     }
 }
 
+/**
+ * create table function to handle execution of any create table sql statement
+ * @param statement a create table SQL statement to be exectued 
+ * @return the query result for execution creating a table
+ */
 QueryResult *SQLExec::create_table(const CreateStatement *statement) 
 {
-    // Update schema
+    //Update schema
     Identifier table_name = statement->tableName;
     ValueDict row;
     row["table_name"] = table_name;
@@ -214,6 +255,11 @@ QueryResult *SQLExec::create_table(const CreateStatement *statement)
     return new QueryResult("created " + table_name);
 }
 
+/**
+ * create index function to handle execution of any create index sql statement
+ * @param statement a create index SQL statement to be exectued 
+ * @return the query result for execution creating an index
+ */
 QueryResult *SQLExec::create_index(const CreateStatement *statement)
 {
     // Update schema
@@ -231,7 +277,8 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement)
     try
     {
         int seq = 0;
-        for(auto const &column : *statement->indexColumns) {
+        for(auto const &column : *statement->indexColumns) 
+        {
             row["seq_in_index"] = Value(++seq);
             row["column_name"] = Value(column);
             indexHandles.push_back(SQLExec::indices->insert(&row));
@@ -257,9 +304,14 @@ QueryResult *SQLExec::create_index(const CreateStatement *statement)
 }
 
 
-// DROP ...
+/**
+ * drop function to handle execution of any drop sql statement
+ * @param statement a drop SQL statement to be exectued 
+ * @return the query result for execution of sql drop statement
+ */
 QueryResult *SQLExec::drop(const DropStatement *statement) 
 {
+    //currently only can handle dropping table and index
     if (statement->type == DropStatement::kTable)
     {
         return drop_table(statement);
@@ -274,6 +326,11 @@ QueryResult *SQLExec::drop(const DropStatement *statement)
     }
 }
 
+/**
+ * drop function to handle execution of drop table sql statement
+ * @param statement a drop table SQL statement to be exectued 
+ * @return the query result for execution of sql drop table statement
+ */
 QueryResult *SQLExec::drop_table(const DropStatement *statement) 
 {
     Identifier table_name = statement->name;
@@ -309,6 +366,11 @@ QueryResult *SQLExec::drop_table(const DropStatement *statement)
     return new QueryResult("dropped " + table_name);
 }
 
+/**
+ * drop function to handle execution of drop index sql statement
+ * @param statement a drop index SQL statement to be exectued 
+ * @return the query result for execution of sql drop index statement
+ */
 QueryResult *SQLExec::drop_index(const DropStatement *statement) 
 {
     //follow the same idea of dropping table. 
@@ -338,9 +400,14 @@ QueryResult *SQLExec::drop_index(const DropStatement *statement)
 }
 
 
-
+/**
+ * show function to handle execution of any show sql statement
+ * @param statement a show SQL statement to be exectued 
+ * @return the query result for execution of sql show statement
+ */
 QueryResult *SQLExec::show(const ShowStatement *statement) 
 {
+    //currently only support show table, columns of table or index of table 
     switch(statement->type)
     {
         case ShowStatement::kTables:
@@ -357,6 +424,11 @@ QueryResult *SQLExec::show(const ShowStatement *statement)
     }
 }
 
+/**
+ * show function to handle execution of show table sql statement
+ * @param statement a show table SQL statement to be exectued 
+ * @return the query result for execution of sql show table statement
+ */
 QueryResult *SQLExec::show_tables() 
 {
     ColumnNames *column_names = new ColumnNames;
@@ -386,6 +458,11 @@ QueryResult *SQLExec::show_tables()
     return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
 }
 
+/**
+ * show function to handle execution of show columns sql statement
+ * @param statement a show columns SQL statement to be exectued 
+ * @return the query result for execution of sql show columns statement
+ */
 QueryResult *SQLExec::show_columns(const ShowStatement *statement) 
 {
     ColumnNames *column_names = new ColumnNames;
@@ -416,6 +493,11 @@ QueryResult *SQLExec::show_columns(const ShowStatement *statement)
     return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(count) + " rows");
 }
 
+/**
+ * show function to handle execution of show index sql statement
+ * @param statement a show index SQL statement to be exectued 
+ * @return the query result for execution of sql show index statement
+ */
 QueryResult *SQLExec::show_index(const ShowStatement *statement) 
 {
     //create columns for index
@@ -620,6 +702,8 @@ bool test_sqlexec_index()
     return passed;
 }
 
+
+// tesing the logic of sql statement. 
 string test_logic(const SQLStatement *statement)
 {
     QueryResult *query_result = SQLExec::execute(statement);
