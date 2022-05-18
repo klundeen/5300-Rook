@@ -203,14 +203,7 @@ QueryResult *SQLExec::create_table(const CreateStatement *statement)
             for(uint i = 0; i < column_names.size(); i++)
             {
                 row["column_name"] = column_names[i];
-                if(column_attributes[i].get_data_type() == ColumnAttribute::INT)
-                {
-                    row["data_type"] = Value("INT");
-                }
-                else
-                {
-                    row["data_type"] = Value("TEXT");
-                }
+                row["data_type"] = Value(column_attributes[i].get_data_type() == ColumnAttribute::TEXT ? "TEXT" : "INT");
                 column_handles.push_back(columns.insert(&row));
             }
             // Create table
