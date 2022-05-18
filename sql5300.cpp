@@ -80,6 +80,10 @@ int main(int argc, char *argv[]) {
 
 DbEnv *_DB_ENV;
 
+/**
+ * initialize the environment
+ * @param envHome path of the environment  
+ */
 void initialize_environment(char *envHome) {
     cout << "(sql5300: running with database environment at " << envHome << ")" << endl;
 
