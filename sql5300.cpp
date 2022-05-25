@@ -46,15 +46,7 @@ int main(int argc, char *argv[]) {
             cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
             continue;
         }
-        // Test cases from Peacock, can also be found on Canvas under Milestone3 and Milestone4
-        if (query == "test2" || query == "test table") {
-            cout << "Testing SQL executor:\n " << (test_sqlexec_table() ? "Tests passed" :  "Tests failed") << endl;
-            continue;
-        }
-        if (query == "test3" || query == "test index") {
-            cout << "Testing SQL executor:\n " << (test_sqlexec_index() ? "Tests passed" :  "Tests failed") << endl;
-            continue;
-        }
+
         // parse and execute
         SQLParserResult *parse = SQLParser::parseSQLString(query);
         if (!parse->isValid()) {
@@ -80,10 +72,6 @@ int main(int argc, char *argv[]) {
 
 DbEnv *_DB_ENV;
 
-/**
- * initialize the environment
- * @param envHome path of the environment  
- */
 void initialize_environment(char *envHome) {
     cout << "(sql5300: running with database environment at " << envHome << ")" << endl;
 

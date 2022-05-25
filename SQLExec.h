@@ -65,7 +65,7 @@ public:
     static QueryResult *execute(const hsql::SQLStatement *statement);
 
 protected:
-    // the one place in the system that holds the _tables and _indices tables
+    // the one place in the system that holds the _tables table and _indices table
     static Tables *tables;
     static Indices *indices;
 
@@ -79,7 +79,7 @@ protected:
     static QueryResult *drop(const hsql::DropStatement *statement);
 
     static QueryResult *drop_table(const hsql::DropStatement *statement);
-    
+
     static QueryResult *drop_index(const hsql::DropStatement *statement);
 
     static QueryResult *show(const hsql::ShowStatement *statement);
@@ -89,6 +89,12 @@ protected:
     static QueryResult *show_columns(const hsql::ShowStatement *statement);
 
     static QueryResult *show_index(const hsql::ShowStatement *statement);
+
+    static QueryResult *insert(const hsql::InsertStatement *statement);
+
+    static QueryResult *del(const hsql::DeleteStatement *statement);
+
+    static QueryResult *select(const hsql::SelectStatement *statement);
 
     /**
      * Pull out column name and attributes from AST's column definition clause
@@ -100,7 +106,3 @@ protected:
     column_definition(const hsql::ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute);
 };
 
-// Test cases from Peacock, can also be found on Canvas under Milestone3 and Milestone4
-bool test_sqlexec_table();
-bool test_sqlexec_index();
-std::string test_logic(const hsql::SQLStatement *statement);

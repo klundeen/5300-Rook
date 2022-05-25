@@ -2,42 +2,29 @@
  * @file SQLExec.cpp - implementation of SQLExec class
  * @author Kevin Lundeen
  * @see "Seattle University, CPSC5300, Spring 2022"
- * start of this code provided by Professor Lundeen for milestone 3
  */
 #include "SQLExec.h"
-#include <sstream>
-#include "ParseTreeToString.h"
 
 using namespace std;
 using namespace hsql;
 
-//define static data
+// define static data
 Tables *SQLExec::tables = nullptr;
 Indices *SQLExec::indices = nullptr;
 
-/**
- * output query result
- * @param out output stream use to display the output
- * @param qres the query result to be displayed as output
- * @return the output stream of the query result
- */
-ostream &operator<<(ostream &out, const QueryResult &qres) 
-{
-    if (qres.column_names != nullptr) 
-    {
+// make query result be printable
+ostream &operator<<(ostream &out, const QueryResult &qres) {
+    if (qres.column_names != nullptr) {
         for (auto const &column_name: *qres.column_names)
             out << column_name << " ";
         out << endl << "+";
         for (unsigned int i = 0; i < qres.column_names->size(); i++)
             out << "----------+";
         out << endl;
-        for (auto const &row: *qres.rows) 
-        {
-            for (auto const &column_name: *qres.column_names) 
-            {
+        for (auto const &row: *qres.rows) {
+            for (auto const &column_name: *qres.column_names) {
                 Value value = row->at(column_name);
-                switch (value.data_type) 
-                {
+                switch (value.data_type) {
                     case ColumnAttribute::INT:
                         out << value.n;
                         break;
@@ -59,653 +46,348 @@ ostream &operator<<(ostream &out, const QueryResult &qres)
     return out;
 }
 
-/**
- * deconstructor of queryresult
- */
-QueryResult::~QueryResult() 
-{
+QueryResult::~QueryResult() {
     if (column_names != nullptr)
-    {
         delete column_names;
-    }
     if (column_attributes != nullptr)
-    {
         delete column_attributes;
-    }
-    if (rows != nullptr)
-    {
-        for (auto row : *rows)
-        {
+    if (rows != nullptr) {
+        for (auto row: *rows)
             delete row;
-        }
         delete rows;
     }
 }
 
-/**
- * execute function to handle execution of sql statement
- * @param statement a SQL statement to be exectued 
- * @return the query result of the sql statement after execution
- */
-QueryResult *SQLExec::execute(const SQLStatement *statement) 
-{
-    //Making sure tables and dices isn't null when handling
-    if (SQLExec::tables == nullptr)
-    {
-        SQLExec::tables = new Tables();
-    }
 
-    if (SQLExec::indices == nullptr)
-    {
+QueryResult *SQLExec::execute(const SQLStatement *statement) {
+    // initialize _tables table, if not yet present
+    if (SQLExec::tables == nullptr) {
+        SQLExec::tables = new Tables();
         SQLExec::indices = new Indices();
     }
 
-    //currently handles create, drop and show sql statements, others are not implemented 
-    try 
-    {
-        switch (statement->type()) 
-        {
+    try {
+        switch (statement->type()) {
             case kStmtCreate:
                 return create((const CreateStatement *) statement);
             case kStmtDrop:
                 return drop((const DropStatement *) statement);
             case kStmtShow:
                 return show((const ShowStatement *) statement);
+            case kStmtInsert:
+                return insert((const InsertStatement *) statement);
+            case kStmtDelete:
+                return del((const DeleteStatement *) statement);
+            case kStmtSelect:
+                return select((const SelectStatement *) statement);
             default:
                 return new QueryResult("not implemented");
         }
-    } 
-    catch (DbRelationError &e) 
-    {
+    } catch (DbRelationError &e) {
         throw SQLExecError(string("DbRelationError: ") + e.what());
     }
 }
 
-/**
- * column data type can be defined 
- * @param col column definition information
- * @param column_name the column name of the column
- * @param column_attribute column attribute that can set the column type
- */
-void SQLExec::column_definition(const ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute) 
-{
+QueryResult *SQLExec::insert(const InsertStatement *statement) {
+    return new QueryResult("INSERT statement not yet implemented");  // FIXME
+}
+
+QueryResult *SQLExec::del(const DeleteStatement *statement) {
+    return new QueryResult("DELETE statement not yet implemented");  // FIXME
+}
+
+QueryResult *SQLExec::select(const SelectStatement *statement) {
+    return new QueryResult("SELECT statement not yet implemented");  // FIXME
+}
+
+void
+SQLExec::column_definition(const ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute) {
     column_name = col->name;
-    //currently only support INT and TEXT type
-    switch (col->type)
-    {
+    switch (col->type) {
         case ColumnDefinition::INT:
             column_attribute.set_data_type(ColumnAttribute::INT);
             break;
         case ColumnDefinition::TEXT:
             column_attribute.set_data_type(ColumnAttribute::TEXT);
             break;
+        case ColumnDefinition::DOUBLE:
         default:
-            throw SQLExecError("invalid ColumnAttribute type");
+            throw SQLExecError("unrecognized data type");
     }
 }
 
-
-/**
- * create function to handle execution of any create sql statement
- * @param statement a create SQL statement to be exectued 
- * @return the query result for execution of sql create statement
- */
-QueryResult *SQLExec::create(const CreateStatement *statement) 
-{
-    //currently only support creating table and indices
-    if (statement->type == CreateStatement::kTable)
-    {
-        return create_table(statement);
-    }
-    else if (statement->type == CreateStatement::kIndex)
-    {
-        return create_index(statement);
-    }
-    else
-    {
-        return new QueryResult("creating a type that isn't supported right now");
+// CREATE ...
+QueryResult *SQLExec::create(const CreateStatement *statement) {
+    switch (statement->type) {
+        case CreateStatement::kTable:
+            return create_table(statement);
+        case CreateStatement::kIndex:
+            return create_index(statement);
+        default:
+            return new QueryResult("Only CREATE TABLE and CREATE INDEX are implemented");
     }
 }
 
-/**
- * create table function to handle execution of any create table sql statement
- * @param statement a create table SQL statement to be exectued 
- * @return the query result for execution creating a table
- */
-QueryResult *SQLExec::create_table(const CreateStatement *statement) 
-{
-    //Update schema
+QueryResult *SQLExec::create_table(const CreateStatement *statement) {
     Identifier table_name = statement->tableName;
-    ValueDict row;
-    row["table_name"] = table_name;
-    Handle table_handle = SQLExec::tables->insert(&row);
-
     ColumnNames column_names;
     ColumnAttributes column_attributes;
     Identifier column_name;
     ColumnAttribute column_attribute;
-
-    // Get all column names and attributes
-    for(ColumnDefinition *column : *statement->columns)
-    {
-        column_definition(column, column_name, column_attribute);
+    for (ColumnDefinition *col : *statement->columns) {
+        column_definition(col, column_name, column_attribute);
         column_names.push_back(column_name);
         column_attributes.push_back(column_attribute);
     }
 
-    try 
-    {
-        // Update columns schema
-        Handles column_handles;
+    // Add to schema: _tables and _columns
+    ValueDict row;
+    row["table_name"] = table_name;
+    Handle t_handle = SQLExec::tables->insert(&row);  // Insert into _tables
+    try {
+        Handles c_handles;
         DbRelation &columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
-        try 
-        {
-            for(uint i = 0; i < column_names.size(); i++)
-            {
+        try {
+            for (uint i = 0; i < column_names.size(); i++) {
                 row["column_name"] = column_names[i];
-                row["data_type"] = Value(column_attributes[i].get_data_type() == ColumnAttribute::TEXT ? "TEXT" : "INT");
-                column_handles.push_back(columns.insert(&row));
+                row["data_type"] = Value(column_attributes[i].get_data_type() == ColumnAttribute::INT ? "INT" : "TEXT");
+                c_handles.push_back(columns.insert(&row));  // Insert into _columns
             }
-            // Create table
+
+            // Finally, actually create the relation
             DbRelation &table = SQLExec::tables->get_table(table_name);
-            if(statement->ifNotExists)
-            {
+            if (statement->ifNotExists)
                 table.create_if_not_exists();
-            }
             else
-            {
                 table.create();
-            }
-        }
-        catch(...)
-        {
-            // Attempt to undo the insertions into columns
-            try 
-            {
-                for(auto const &column_handle : column_handles)
-                {
-                    columns.del(column_handle);
-                }
-            }
-            catch(...) 
-            {
-            }
+
+        } catch (...) {
+            // attempt to remove from _columns
+            try {
+                for (auto const &handle: c_handles)
+                    columns.del(handle);
+            } catch (...) {}
             throw;
         }
-    }
-    catch(...)
-    {
-        // Attempt to undo the insertions into tables
-        try 
-        {
-            SQLExec::tables->del(table_handle);
-        }
-        catch(...) 
-        {
-        }
+
+    } catch (exception &e) {
+        try {
+            // attempt to remove from _tables
+            SQLExec::tables->del(t_handle);
+        } catch (...) {}
         throw;
     }
     return new QueryResult("created " + table_name);
 }
 
-/**
- * create index function to handle execution of any create index sql statement
- * @param statement a create index SQL statement to be exectued 
- * @return the query result for execution creating an index
- */
-QueryResult *SQLExec::create_index(const CreateStatement *statement)
-{
-    // Update schema
-    Identifier table_name = statement->tableName;
+QueryResult *SQLExec::create_index(const CreateStatement *statement) {
     Identifier index_name = statement->indexName;
-    Identifier index_type = statement->indexType;
+    Identifier table_name = statement->tableName;
+
+    // get underlying relation
+    DbRelation &table = SQLExec::tables->get_table(table_name);
+
+    // check that given columns exist in table
+    const ColumnNames &table_columns = table.get_column_names();
+    for (auto const &col_name: *statement->indexColumns)
+        if (find(table_columns.begin(), table_columns.end(), col_name) == table_columns.end())
+            throw SQLExecError(string("Column '") + col_name + "' does not exist in " + table_name);
+
+    // insert a row for every column in index into _indices
     ValueDict row;
     row["table_name"] = Value(table_name);
     row["index_name"] = Value(index_name);
-    row["index_type"] = Value(index_type);
-    row["is_unique"] = Value(index_type == "BTREE");
-    Handles indexHandles;
-
-    //adding index columns then create index 
-    try
-    {
-        int seq = 0;
-        for(auto const &column : *statement->indexColumns) 
-        {
+    row["index_type"] = Value(statement->indexType);
+    row["is_unique"] = Value(string(statement->indexType) == "BTREE"); // assume HASH is non-unique --
+    int seq = 0;
+    Handles i_handles;
+    try {
+        for (auto const &col_name: *statement->indexColumns) {
             row["seq_in_index"] = Value(++seq);
-            row["column_name"] = Value(column);
-            indexHandles.push_back(SQLExec::indices->insert(&row));
+            row["column_name"] = Value(col_name);
+            i_handles.push_back(SQLExec::indices->insert(&row));
         }
 
         DbIndex &index = SQLExec::indices->get_index(table_name, index_name);
         index.create();
-    }
-    catch (DbRelationError &e)
-    {
-        // if error happens, revert the insertion of index
-        try
-        {
-            for(auto const &handle : indexHandles) {
+
+    } catch (...) {
+        // attempt to remove from _indices
+        try {  // if any exception happens in the reversal below, we still want to re-throw the original ex
+            for (auto const &handle: i_handles)
                 SQLExec::indices->del(handle);
-            }
-        }
-        catch (DbRelationError &e) {}
-        throw;
+        } catch (...) {}
+        throw;  // re-throw the original exception (which should give the client some clue as to why it did
     }
-
-    return new QueryResult("Created new index " + index_name);
+    return new QueryResult("created index " + index_name);
 }
 
-
-/**
- * drop function to handle execution of any drop sql statement
- * @param statement a drop SQL statement to be exectued 
- * @return the query result for execution of sql drop statement
- */
-QueryResult *SQLExec::drop(const DropStatement *statement) 
-{
-    //currently only can handle dropping table and index
-    if (statement->type == DropStatement::kTable)
-    {
-        return drop_table(statement);
-    }
-    else if (statement->type == DropStatement::kIndex)
-    {
-        return drop_index(statement);
-    }
-    else
-    {
-        return new QueryResult("creating a type that isn't supported right now");
+// DROP ...
+QueryResult *SQLExec::drop(const DropStatement *statement) {
+    switch (statement->type) {
+        case DropStatement::kTable:
+            return drop_table(statement);
+        case DropStatement::kIndex:
+            return drop_index(statement);
+        default:
+            return new QueryResult("Only DROP TABLE and CREATE INDEX are implemented");
     }
 }
 
-/**
- * drop function to handle execution of drop table sql statement
- * @param statement a drop table SQL statement to be exectued 
- * @return the query result for execution of sql drop table statement
- */
-QueryResult *SQLExec::drop_table(const DropStatement *statement) 
-{
+QueryResult *SQLExec::drop_table(const DropStatement *statement) {
     Identifier table_name = statement->name;
+    if (table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
+        throw SQLExecError("cannot drop a schema table");
 
-    // Check the table is not a schema table
-    if(table_name == Tables::TABLE_NAME || table_name == Columns::TABLE_NAME)
-    {
-        return new QueryResult("Cannot drop a schema table!");
-    }
+    ValueDict where;
+    where["table_name"] = Value(table_name);
 
     // get the table
     DbRelation &table = SQLExec::tables->get_table(table_name);
 
+    // remove any indices
+    for (auto const &index_name: SQLExec::indices->get_index_names(table_name)) {
+        DbIndex &index = SQLExec::indices->get_index(table_name, index_name);
+        index.drop();  // drop the index
+    }
+    Handles *handles = SQLExec::indices->select(&where);
+    for (auto const &handle: *handles)
+        SQLExec::indices->del(handle);  // remove all rows from _indices for each index on this table
+    delete handles;
+
+    // remove from _columns schema
+    DbRelation &columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
+    handles = columns.select(&where);
+    for (auto const &handle: *handles)
+        columns.del(handle);
+    delete handles;
+
     // remove table
     table.drop();
 
-    ValueDict where;
-    where["table_name"] = Value(table_name);
-
-    // get the columns
-    DbRelation &columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
-    
-    Handles *handles = columns.select(&where);
-    for (auto const &handle : *handles)
-    {
-        columns.del(handle);
-    }
+    // finally, remove from _tables schema
+    handles = SQLExec::tables->select(&where);
+    SQLExec::tables->del(*handles->begin()); // expect only one row from select
     delete handles;
 
-    // finally, remove from table schema
-    SQLExec::tables->del(*SQLExec::tables->select(&where)->begin());
-
-    return new QueryResult("dropped " + table_name);
+    return new QueryResult(string("dropped ") + table_name);
 }
 
-/**
- * drop function to handle execution of drop index sql statement
- * @param statement a drop index SQL statement to be exectued 
- * @return the query result for execution of sql drop index statement
- */
-QueryResult *SQLExec::drop_index(const DropStatement *statement) 
-{
-    //follow the same idea of dropping table. 
+QueryResult *SQLExec::drop_index(const DropStatement *statement) {
     Identifier table_name = statement->name;
-    Identifier indexName = statement->indexName;
+    Identifier index_name = statement->indexName;
 
-    try {
-        DbIndex &index = SQLExec::indices->get_index(table_name, indexName);
+    // drop index
+    DbIndex &index = SQLExec::indices->get_index(table_name, index_name);
     index.drop();
-    }
-    catch(...) {
-        return new QueryResult("Index not found");
-    }
 
+    // remove rows from _indices for this index
     ValueDict where;
     where["table_name"] = Value(table_name);
-    where["index_name"] = Value(indexName);
+    where["index_name"] = Value(index_name);
     Handles *handles = SQLExec::indices->select(&where);
-    
-    for (auto const &handle : *handles)
-    {
+    for (auto const &handle: *handles)
         SQLExec::indices->del(handle);
-    }
     delete handles;
 
-    return new QueryResult("dropped index " + indexName + " from " + table_name); 
+    return new QueryResult("dropped index " + index_name);
 }
 
-
-/**
- * show function to handle execution of any show sql statement
- * @param statement a show SQL statement to be exectued 
- * @return the query result for execution of sql show statement
- */
-QueryResult *SQLExec::show(const ShowStatement *statement) 
-{
-    //currently only support show table, columns of table or index of table 
-    switch(statement->type)
-    {
+// SHOW ...
+QueryResult *SQLExec::show(const ShowStatement *statement) {
+    switch (statement->type) {
         case ShowStatement::kTables:
             return show_tables();
-            break;
         case ShowStatement::kColumns:
             return show_columns(statement);
-            break;
         case ShowStatement::kIndex:
             return show_index(statement);
-            break;
         default:
-            return new QueryResult("Not implemented");
+            throw SQLExecError("unrecognized SHOW type");
     }
 }
 
-/**
- * show function to handle execution of show table sql statement
- * @param statement a show table SQL statement to be exectued 
- * @return the query result for execution of sql show table statement
- */
-QueryResult *SQLExec::show_tables() 
-{
+QueryResult *SQLExec::show_index(const ShowStatement *statement) {
     ColumnNames *column_names = new ColumnNames;
-    column_names->push_back("table_name");
-    
     ColumnAttributes *column_attributes = new ColumnAttributes;
+    column_names->push_back("table_name");
     column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
 
-    // Get all entries from the tables
-    ValueDicts *rows = new ValueDicts();
-    Handles *handles = SQLExec::tables->select();
-    int size = 0;
-
-    for(auto const &handle : *handles)
-    {
-        // Get all entries from the column
-        ValueDict *row = SQLExec::tables->project(handle, column_names);
-        // Check if table name is already in the schema
-        Identifier table_name = row->at("table_name").s;
-        if(table_name != Tables::TABLE_NAME && table_name != Columns::TABLE_NAME && table_name != Indices::TABLE_NAME)
-        {
-            rows->push_back(row);
-            size++;
-        }
-    }
-    delete handles;
-    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
-}
-
-/**
- * show function to handle execution of show columns sql statement
- * @param statement a show columns SQL statement to be exectued 
- * @return the query result for execution of sql show columns statement
- */
-QueryResult *SQLExec::show_columns(const ShowStatement *statement) 
-{
-    ColumnNames *column_names = new ColumnNames;
-    column_names->push_back("table_name");
-    column_names->push_back("column_name");
-    column_names->push_back("data_type");
-    ColumnAttributes *column_attributes = new ColumnAttributes;
-
-    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
-
-    // Used to store the data
-    ValueDicts *rows = new ValueDicts();
-
-    // Used to locate the table
-    ValueDict where;
-    where["table_name"] = Value(statement->tableName);
-    
-    Handles *handles = SQLExec::tables->get_table(Columns::TABLE_NAME).select(&where);
-    int count = handles->size();
-
-    for (auto const &handle : *handles)
-    {
-        ValueDict *row = SQLExec::tables->get_table(Columns::TABLE_NAME).project(handle, column_names);
-        rows->push_back(row);
-    }
-
-    delete handles;
-    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(count) + " rows");
-}
-
-/**
- * show function to handle execution of show index sql statement
- * @param statement a show index SQL statement to be exectued 
- * @return the query result for execution of sql show index statement
- */
-QueryResult *SQLExec::show_index(const ShowStatement *statement) 
-{
-    //create columns for index
-    ColumnNames *column_names = new ColumnNames();
-    column_names->push_back("table_name");
     column_names->push_back("index_name");
-    column_names->push_back("column_name");
-    column_names->push_back("seq_in_index");
-    column_names->push_back("index_type");
-    column_names->push_back("is_unique");
-
-    ColumnAttributes *column_attributes = new ColumnAttributes;
     column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
 
+    column_names->push_back("column_name");
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
+
+    column_names->push_back("seq_in_index");
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::INT));
+
+    column_names->push_back("index_type");
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
+
+    column_names->push_back("is_unique");
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::BOOLEAN));
+
     ValueDict where;
-    where["table_name"] = Value(statement->tableName);
-
+    where["table_name"] = Value(string(statement->tableName));
     Handles *handles = SQLExec::indices->select(&where);
-    int size = handles->size();
+    u_long n = handles->size();
 
-    ValueDicts *rows = new ValueDicts();
-
-    for (auto const &handle : *handles)
-    {
+    ValueDicts *rows = new ValueDicts;
+    for (auto const &handle: *handles) {
         ValueDict *row = SQLExec::indices->project(handle, column_names);
         rows->push_back(row);
     }
     delete handles;
-    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(size) + " rows");
+    return new QueryResult(column_names, column_attributes, rows,
+                           "successfully returned " + to_string(n) + " rows");
 }
 
+QueryResult *SQLExec::show_tables() {
+    ColumnNames *column_names = new ColumnNames;
+    column_names->push_back("table_name");
 
+    ColumnAttributes *column_attributes = new ColumnAttributes;
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
 
-// Test cases from Peacock, can also be found on Canvas under Milestone3
-// Output matches Canvas Milestone3 test cases expected output
-// For accurate testing, make sure no tables present prior to running test cases
-// Test Function for SQLExec class
-bool test_sqlexec_table()
-{
-    const int num_queries = 11;
-    const string queries[num_queries] = {"show tables",
-                                         "show columns from _tables",
-                                         "show columns from _columns",
-                                         "create table foo (id int, data text, x integer, y integer, z integer)",
-                                         "create table foo (goober int)",
-                                         "create table goo (x int, x text)",
-                                         "show tables",
-                                         "show columns from foo",
-                                         "drop table foo",
-                                         "show tables",
-                                         "show columns from foo"};
-    bool passed = true;
-    const string results[num_queries] = {"SHOW TABLES table_name  successfully returned 0 rows",
-                                         "SHOW COLUMNS FROM _tables table_name column_name data_type _tables table_name TEXT successfully returned 1 rows",
-                                         "SHOW COLUMNS FROM _columns   table_name column_name data_type _columns   table_name TEXT_columns column_name  TEXT_columns data_type TEXT   successfully returned 3 rows",
-                                         "CREATE TABLE foo (id INT, data TEXT, x INT, y INT, z INT)  created foo",
-                                         "CREATE TABLE foo (goober INT)  Error: DbRelationError: foo already exists",
-                                         "Error: DbRelationError: duplicate column goo.x",
-                                         "SHOW TABLES  table_name foo successfully returned 1 rows",
-                                         "SHOW COLUMNS FROM foo  table_name column_name data_type foo id INT foo data TEXT  foo x INT  foo y INT  foo z INT  successfully returned 5 rows",
-                                         "DROP TABLE foo   dropped foo",
-                                         "SHOW TABLES  table_name  successfully returned 0 rows",
-                                         "SHOW COLUMNS FROM footable_name column_name data_type  successfully returned 0 rows"};
+    Handles *handles = SQLExec::tables->select();
+    u_long n = handles->size() - 3;
 
-    for (int i = 0; i < num_queries; i++)
-    {
-        SQLParserResult *result = SQLParser::parseSQLString(queries[i]);
-        if (result->isValid())
-        {
-            // if result is valid, pass result to our own execute function
-            for (long unsigned int j = 0; j < result->size(); j++)
-            {
-                const SQLStatement *statement = result->getStatement(j);
-                try
-                {
-                    string str1 = test_logic((const SQLStatement *)statement);
-                    string str2 = str1;
-                    str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
-                                         { return !(isalnum(c)); }),
-                               str2.end());
-                    string str3 = results[i];
-                    str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
-                                         { return !(isalnum(c)); }),
-                               str3.end());
-                    if (str2 == str3)
-                    {
-                        cout << queries[i] << endl;
-                        cout << str1 << endl;
-                    }
-                    else
-                    {
-                        cout << "Unexpected query  " << queries[i] << endl;
-                        cout << "query_result  " << str2 << endl;
-                        cout << "results[i]  " << str3 << endl;
-                        passed = false;
-                    }
-                }
-                catch (SQLExecError &e)
-                {
-                    cout << "Error: " << e.what() << endl;
-                }
-            }
-        }
+    ValueDicts *rows = new ValueDicts;
+    for (auto const &handle: *handles) {
+        ValueDict *row = SQLExec::tables->project(handle, column_names);
+        Identifier table_name = row->at("table_name").s;
+        if (table_name != Tables::TABLE_NAME && table_name != Columns::TABLE_NAME && table_name != Indices::TABLE_NAME)
+            rows->push_back(row);
         else
-        {
-            passed = false;
-            cout << "Invalid SQL" << endl;
-        }
-        delete result;
+            delete row;
     }
-    return passed;
+    delete handles;
+    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(n) + " rows");
 }
 
-// Test Function for SQLExec class
-bool test_sqlexec_index()
-{
-    const int num_queries = 18;
-    const string queries[num_queries] = {"create table goober (x integer, y integer, z integer)",
-                                         "show tables",
-                                         "show columns from goober",
-                                         "create index fx on goober (x,y)",
-                                         "show index from goober",
-                                         "drop index fx from goober",
-                                         "show index from goober",
-                                         "create index fx on goober (x)",
-                                         "show index from goober",
-                                         "create index fx on goober (y,z)",
-                                         "show index from goober",
-                                         "create index fyz on goober (y,z)",
-                                         "show index from goober",
-                                         "drop index fx from goober",
-                                         "show index from goober",
-                                         "drop index fyz from goober",
-                                         "show index from goober",
-                                         "drop table goober"};
-    bool passed = true;
-    const string results[num_queries] = {"CREATE TABLE goober x INT yINT zINT created goober",
-                                         "SHOW TABLES table_name goober successfully returned 1 rows",
-                                         "SHOW COLUMNS FROM goober table_name column_name data_type goober x INT goober y INT goober z INT successfully returned 3 rows",
-                                         "CREATE INDEX fx ON goober USING BTREE fx ON goober USING BTREE xy Created new index fx",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fx y 2 BTREE true successfully returned 2 rows",
-                                         "DROP goober dropped index fx from goober",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
-                                         "CREATE INDEX fx ON goober USING BTREE fx ON goober USING BTREE x Created new index fx",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
-                                         "CREATE INDEX fx ON goober USING BTREE (y, z) Error: DbRelationError: duplicate index goober fx",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true successfully returned 1 rows",
-                                         "CREATE INDEX fyz ON goober USING BTREE fyz ON goober USING BTREE yz Created new index fyz",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fx x 1 BTREE true goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 3 rows",
-                                         "DROP goober dropped index fx from goober",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique goober fyz y 1 BTREE true goober fyz z 2 BTREE true successfully returned 2 rows",
-                                         "DROP goober dropped index fyz from goober",
-                                         "SHOW INDEX FROM goober table_name index_name column_name seq_in_index index_type is_unique successfully returned 0 rows",
-                                         "DROP TABLE goober dropped goober"};
+QueryResult *SQLExec::show_columns(const ShowStatement *statement) {
+    DbRelation &columns = SQLExec::tables->get_table(Columns::TABLE_NAME);
 
-    for (int i = 0; i < num_queries; i++)
-    {
-        SQLParserResult *result = SQLParser::parseSQLString(queries[i]);
-        if (result->isValid())
-        {
-            // if result is valid, pass result to our own execute function
-            for (long unsigned int j = 0; j < result->size(); j++)
-            {
-                const SQLStatement *statement = result->getStatement(j);
-                try
-                {
-                    string str1 = test_logic((const SQLStatement *)statement);
-                    string str2 = str1;
-                    str2.erase(remove_if(str2.begin(), str2.end(), [](char c)
-                                         { return !(isalnum(c)); }),
-                               str2.end());
-                    string str3 = results[i];
-                    str3.erase(remove_if(str3.begin(), str3.end(), [](char c)
-                                         { return !(isalnum(c)); }),
-                               str3.end());
-                    if (str2 == str3)
-                    {
-                        cout << queries[i] << endl;
-                        cout << str1 << endl;
-                    }
-                    else
-                    {
-                        cout << "Unexpected query  " << queries[i] << endl;
-                        cout << "query_result  " << str2 << endl;
-                        cout << "results[i]  " << str3 << endl;
-                        passed = false;
-                    }
-                }
-                catch (SQLExecError &e)
-                {
-                    cout << "Error: " << e.what() << endl;
-                }
-            }
-        }
-        else
-        {
-            passed = false;
-            cout << "Invalid SQL" << endl;
-        }
-        delete result;
+    ColumnNames *column_names = new ColumnNames;
+    column_names->push_back("table_name");
+    column_names->push_back("column_name");
+    column_names->push_back("data_type");
+
+    ColumnAttributes *column_attributes = new ColumnAttributes;
+    column_attributes->push_back(ColumnAttribute(ColumnAttribute::TEXT));
+
+    ValueDict where;
+    where["table_name"] = Value(statement->tableName);
+    Handles *handles = columns.select(&where);
+    u_long n = handles->size();
+
+    ValueDicts *rows = new ValueDicts;
+    for (auto const &handle: *handles) {
+        ValueDict *row = columns.project(handle, column_names);
+        rows->push_back(row);
     }
-    return passed;
+    delete handles;
+    return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(n) + " rows");
 }
 
-
-// tesing the logic of sql statement. 
-string test_logic(const SQLStatement *statement)
-{
-    QueryResult *query_result = SQLExec::execute(statement);
-    std::stringstream buffer;
-    buffer << ParseTreeToString::statement(statement) << std::endl;
-    buffer << *query_result << std::endl;
-    string str1 = buffer.str();
-
-    delete query_result;
-    query_result = nullptr;
-    return buffer.str();
-}

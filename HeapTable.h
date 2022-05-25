@@ -49,6 +49,8 @@ public:
 
     virtual Handles *select(const ValueDict *where);
 
+    virtual Handles* select(Handles *current_selection, const ValueDict* where);
+
     virtual ValueDict *project(Handle handle);
 
     virtual ValueDict *project(Handle handle, const ColumnNames *column_names);
@@ -70,3 +72,4 @@ protected:
 };
 
 bool test_heap_storage();
+

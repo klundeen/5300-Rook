@@ -65,3 +65,4 @@ protected:
 
     virtual uint32_t get_block_count();
 };
+
