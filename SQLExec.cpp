@@ -89,7 +89,51 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) {
 }
 
 QueryResult *SQLExec::insert(const InsertStatement *statement) {
-    return new QueryResult("INSERT statement not yet implemented");  // FIXME
+    Identifier tableName = statement->tableName;
+    ColumnNames colNames;
+    vector<Value> vals;
+    
+    for (char* col: *statement->columns) {
+        colNames.push_back(col);
+    }
+    
+    for (uint i = 0; i < statement->columns->size(); i++) {
+        Expr* val = statement->values->at(i);
+
+        switch (val->type)
+        {
+            case ExprType::kExprLiteralInt:
+                vals.push_back(Value(val->ival));
+                break;
+            case ExprType::kExprLiteralString:
+                vals.push_back(Value(val->name));
+                break;
+            default:
+                throw SQLExecError("Unsupported data type");
+        }
+    }
+    
+    DbRelation &table = SQLExec::tables->get_table(tableName);
+    
+    Handle t_handle;
+    ValueDict row;
+    auto indexNames = SQLExec::indices->get_index_names(tableName);
+    uint indices = indexNames.size();
+
+    for (uint i = 0; i < colNames.size(); i++) {
+        row[colNames.at(i)] = vals.at(i);
+    }
+    
+    t_handle = table.insert(&row);
+
+    for (uint i = 0; i < indices; i++) {
+        DbIndex &index = SQLExec::indices->get_index(tableName, indexNames.at(i));
+        index.insert(t_handle);
+    }
+
+    return new QueryResult("successfully inserted 1 row into " + tableName +
+                           " and " + to_string(indices) +
+                           (indices <= 1 ? " index" : " indices"));
 }
 
 QueryResult *SQLExec::del(const DeleteStatement *statement) {
