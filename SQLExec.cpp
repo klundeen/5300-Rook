@@ -88,10 +88,18 @@ QueryResult *SQLExec::execute(const SQLStatement *statement) {
     }
 }
 
+// Insert into a table and indices
 QueryResult *SQLExec::insert(const InsertStatement *statement) {
-    Identifier tableName = statement->tableName;
+    Identifier tableName;
     ColumnNames colNames;
     vector<Value> vals;
+    IndexNames indexNames;
+    ValueDict row;
+    Handle handle;
+    uint numIndices;
+    
+    tableName = statement->tableName;
+    DbRelation &table = SQLExec::tables->get_table(tableName);
     
     for (char* col: *statement->columns) {
         colNames.push_back(col);
@@ -113,35 +121,129 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
         }
     }
     
-    DbRelation &table = SQLExec::tables->get_table(tableName);
-    
-    Handle t_handle;
-    ValueDict row;
-    auto indexNames = SQLExec::indices->get_index_names(tableName);
-    uint indices = indexNames.size();
+    try {
+        indexNames = SQLExec::indices->get_index_names(tableName);
 
-    for (uint i = 0; i < colNames.size(); i++) {
-        row[colNames.at(i)] = vals.at(i);
+        for (uint i = 0; i < colNames.size(); i++) {
+            row[colNames.at(i)] = vals.at(i);
+        }
+        
+        handle = table.insert(&row);
     }
-    
-    t_handle = table.insert(&row);
+    catch (...) {
+        table.del(handle);
+        throw SQLExecError("Error inserting into table");
+    }
 
-    for (uint i = 0; i < indices; i++) {
-        DbIndex &index = SQLExec::indices->get_index(tableName, indexNames.at(i));
-        index.insert(t_handle);
+    numIndices = indexNames.size();
+
+    try {
+        for (uint i = 0; i < numIndices; i++) {
+            DbIndex &index = SQLExec::indices->get_index(tableName, indexNames.at(i));
+            index.insert(handle);
+        }
     }
+    catch (...) {
+        for (uint i = 0; i < numIndices; i++) {
+            DbIndex &index = SQLExec::indices->get_index(tableName, indexNames.at(i));
+            index.del(handle);
+        }
+        throw SQLExecError("Error inserting into index");
+    }
+        
 
     return new QueryResult("successfully inserted 1 row into " + tableName +
-                           " and " + to_string(indices) +
-                           (indices <= 1 ? " index" : " indices"));
+                           (numIndices == 0 ? "" : (" and " + to_string(numIndices) +
+                           (numIndices == 1 ? " index" : " indices"))));
 }
 
+// Delete a table and any indices present
 QueryResult *SQLExec::del(const DeleteStatement *statement) {
-    return new QueryResult("DELETE statement not yet implemented");  // FIXME
+    Identifier tableName;
+    EvalPlan *plan;
+    EvalPipeline pipeline;
+    IndexNames indexNames;
+    Handles *handles;
+    uint numRows;
+    uint numIndices;
+    
+    tableName = statement->tableName;
+    DbRelation &table = SQLExec::tables->get_table(tableName);
+
+    plan = new EvalPlan(table);
+
+    if (statement->expr != nullptr) {
+        
+        plan = new EvalPlan(get_where_conjunction(statement->expr, &table.get_column_names()), plan);
+    }
+    else {
+        plan = plan->optimize();
+    }
+    
+    pipeline = plan->pipeline();
+    
+    indexNames = SQLExec::indices->get_index_names(tableName);
+    handles = pipeline.second;
+    for (auto const& indexName: indexNames) {
+        DbIndex &index = SQLExec::indices->get_index(tableName, indexName);
+        for (auto const& handle: *handles) {
+            index.del(handle);
+        }
+    }
+    
+    for (auto const& handle: *handles) {
+        pipeline.first->del(handle);
+    }
+    
+    numRows = handles->size();
+    numIndices = indexNames.size();
+
+    return new QueryResult("successfully deleted " + to_string(numRows) +
+                           (numRows == 1 ? " row" : " rows") + " from " +
+                           tableName +
+                           (numIndices == 0 ? "" : (" and " + to_string(numIndices) +
+                           (numIndices == 1 ? " index" : " indices"))));
 }
 
 QueryResult *SQLExec::select(const SelectStatement *statement) {
     return new QueryResult("SELECT statement not yet implemented");  // FIXME
+}
+
+// Pull out conjunctions of equality predicates from parse tree
+ValueDict *SQLExec::get_where_conjunction(const hsql::Expr *parseWhere, const ColumnNames *columnNames) {
+    ValueDict* where;
+    ValueDict* whereDict;
+    
+    whereDict = nullptr;
+    
+    if (parseWhere == nullptr || parseWhere->type != kExprOperator)
+        throw SQLExecError("Invalid where clause expression");
+    
+    switch (parseWhere->opType) {
+        case Expr::SIMPLE_OP:
+            switch (parseWhere->expr2->type) {
+                case ExprType::kExprLiteralInt:
+                    whereDict->insert(pair<Identifier, Value>(parseWhere->expr->name, Value(parseWhere->expr2->ival)));
+                    break;
+                case ExprType::kExprLiteralString:
+                    whereDict->insert(pair<Identifier, Value>(parseWhere->expr->name, Value(parseWhere->expr2->name)));
+                    break;
+                default:
+                    throw SQLExecError("Only supports INT and TEXT expression types, not " + parseWhere->expr2->type);
+            }
+            break;
+        case Expr::AND:
+            where = get_where_conjunction(parseWhere->expr, columnNames);
+            whereDict->insert(where->begin(), where->end());
+            where = get_where_conjunction(parseWhere->expr2, columnNames);
+            whereDict->insert(where->begin(), where->end());
+            whereDict->insert(where->begin(), where->end());
+            break;
+        default:
+            throw SQLExecError("Only supports AND conjunctions, not " + parseWhere->opType);
+    }
+    
+    return whereDict;
 }
 
 void

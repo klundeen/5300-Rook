@@ -9,6 +9,7 @@
 #include <string>
 #include "SQLParser.h"
 #include "schema_tables.h"
+#include "EvalPlan.h"
 
 /**
  * @class SQLExecError - exception for SQLExec methods
@@ -95,6 +96,8 @@ protected:
     static QueryResult *del(const hsql::DeleteStatement *statement);
 
     static QueryResult *select(const hsql::SelectStatement *statement);
+    
+    static ValueDict *get_where_conjunction(const hsql::Expr *parseWhere, const ColumnNames *columnNames);
 
     /**
      * Pull out column name and attributes from AST's column definition clause
