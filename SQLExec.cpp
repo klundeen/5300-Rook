@@ -101,11 +101,20 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
     tableName = statement->tableName;
     DbRelation &table = SQLExec::tables->get_table(tableName);
     
-    for (char* col: *statement->columns) {
-        colNames.push_back(col);
+    if (statement->columns != nullptr) {
+        for (char* col: *statement->columns) {
+            colNames.push_back(col);
+        }
     }
-    
-    for (uint i = 0; i < statement->columns->size(); i++) {
+    else {
+        colNames = table.get_column_names();
+    }
+
+
+    for (uint i = 0; i < colNames.size(); i++) {
+        if (i >= statement->values->size())
+            goto EXIT;
+
         Expr* val = statement->values->at(i);
 
         switch (val->type)
@@ -120,14 +129,17 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
                 throw SQLExecError("Unsupported data type");
         }
     }
-    
+
     try {
         indexNames = SQLExec::indices->get_index_names(tableName);
 
         for (uint i = 0; i < colNames.size(); i++) {
             row[colNames.at(i)] = vals.at(i);
         }
-        
+
+        if (row.size() < 2)
+            goto EXIT;
+
         handle = table.insert(&row);
     }
     catch (...) {
@@ -150,11 +162,13 @@ QueryResult *SQLExec::insert(const InsertStatement *statement) {
         }
         throw SQLExecError("Error inserting into index");
     }
-        
 
     return new QueryResult("successfully inserted 1 row into " + tableName +
                            (numIndices == 0 ? "" : (" and " + to_string(numIndices) +
                            (numIndices == 1 ? " index" : " indices"))));
+
+EXIT:
+    throw DbRelationError("don't know how to handle NULLs, defaults, etc. yet");
 }
 
 // Delete a table and any indices present
