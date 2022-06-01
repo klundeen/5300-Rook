@@ -183,17 +183,15 @@ QueryResult *SQLExec::del(const DeleteStatement *statement) {
     
     tableName = statement->tableName;
     DbRelation &table = SQLExec::tables->get_table(tableName);
-
     plan = new EvalPlan(table);
 
     if (statement->expr != nullptr) {
-        
         plan = new EvalPlan(get_where_conjunction(statement->expr, &table.get_column_names()), plan);
     }
     else {
         plan = plan->optimize();
     }
-    
+
     pipeline = plan->pipeline();
     
     indexNames = SQLExec::indices->get_index_names(tableName);
@@ -228,7 +226,7 @@ ValueDict *SQLExec::get_where_conjunction(const hsql::Expr *parseWhere, const Co
     ValueDict* where;
     ValueDict* whereDict;
     
-    whereDict = nullptr;
+    whereDict = new ValueDict;
     
     if (parseWhere == nullptr || parseWhere->type != kExprOperator)
         throw SQLExecError("Invalid where clause expression");
