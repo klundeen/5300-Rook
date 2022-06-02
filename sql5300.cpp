@@ -46,6 +46,10 @@ int main(int argc, char *argv[]) {
             cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
             continue;
         }
+        if (query == "test2" || query == "test queries") {
+            cout << "Test for Milestone 5:\n" << (test_queries() ? "Tests passed" :  "Tests failed") << endl;
+            continue;
+        }
 
         // parse and execute
         SQLParserResult *parse = SQLParser::parseSQLString(query);

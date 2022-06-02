@@ -549,3 +549,62 @@ QueryResult *SQLExec::show_columns(const ShowStatement *statement) {
     return new QueryResult(column_names, column_attributes, rows, "successfully returned " + to_string(n) + " rows");
 }
 
+// Test Function for Milestone 5
+bool test_queries() {
+    const int num_queries = 28;
+    const string queries[num_queries] = {"show tables",
+                                         "create table foo (id int, data text)",
+                                         "show tables",
+                                         "show columns from foo",
+                                         "create index fx on foo (id)",
+                                         "create index fz on foo (data)",
+                                         "show index from foo",
+                                         "insert into foo (id, data) values (1,\"one\")",
+                                         "select * from foo",
+                                         "insert into foo values (2, \"Two\"); insert into foo values (3, \"Three\"); insert into foo values (99, \"wowzers, Penny!!\")",
+                                         "select * from foo",
+                                         "select * from foo where id=3",
+                                         "select * from foo where id=1 and data=\"one\"",
+                                         "select * from foo where id=99 and data=\"nine\"",
+                                         "select id from foo",
+                                         "select data from foo where id=1",
+                                         "delete from foo where id=1",
+                                         "select * from foo",
+                                         "delete from foo",
+                                         "select * from foo",
+                                         "insert into foo values (2, \"Two\"); insert into foo values (3, \"Three\"); insert into foo values (99, \"wowzers, Penny!!\")",
+                                         "select * from foo",
+                                         "drop index fz from foo",
+                                         "show index from foo",
+                                         "insert into foo (id) VALUES (100)",
+                                         "select * from foo",
+                                         "drop table foo",
+                                         "show tables"};
+    bool passed = true;
+
+    for (int i = 0; i < num_queries; i++) {
+        cout << "SQL> " << queries[i] << endl;
+        SQLParserResult *result = SQLParser::parseSQLString(queries[i]);
+        if(result->isValid()) {
+            //if result is valid, pass result to our own execute function
+            for(long unsigned int i = 0; i < result->size(); ++i) {
+                const SQLStatement *statement = result->getStatement(i);
+                try {
+                    QueryResult *query_result = SQLExec::execute(statement);
+                    cout << *query_result << endl;
+                    delete query_result;
+                } 
+                catch (SQLExecError &e) {
+                    cout << "Error: " << e.what() << endl;
+                }
+            }
+        }
+        else {
+            passed = false;
+            cout << "Invalid SQL" << endl;
+        }
+        delete result;
+    }
+    
+    return passed;
+}

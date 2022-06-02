@@ -109,3 +109,4 @@ protected:
     column_definition(const hsql::ColumnDefinition *col, Identifier &column_name, ColumnAttribute &column_attribute);
 };
 
+bool test_queries();
