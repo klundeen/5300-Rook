@@ -10,6 +10,7 @@
 #include "SQLParser.h"
 #include "ParseTreeToString.h"
 #include "SQLExec.h"
+#include "btree.h"
 
 using namespace std;
 using namespace hsql;
@@ -44,6 +45,7 @@ int main(int argc, char *argv[]) {
             break;  // only way to get out
         if (query == "test") {
             cout << "test_heap_storage: " << (test_heap_storage() ? "ok" : "failed") << endl;
+            cout << "test_btree: " << (test_btree() ? "ok" : "failed") << endl;
             continue;
         }
         if (query == "test2" || query == "test queries") {
