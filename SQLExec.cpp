@@ -217,8 +217,40 @@ QueryResult *SQLExec::del(const DeleteStatement *statement) {
                            (numIndices == 1 ? " index" : " indices"))));
 }
 
-QueryResult *SQLExec::select(const SelectStatement *statement) {
-    return new QueryResult("SELECT statement not yet implemented");  // FIXME
+QueryResult *SQLExec::select(const SelectStatement *statement) { 
+    //table and columns
+    Identifier table_name = statement->fromTable->name;
+    DbRelation &table = SQLExec::tables->get_table(table_name);
+    ColumnNames *column_names = new ColumnNames;
+    //Evalplan 
+    EvalPlan* plan;
+
+
+    //iterate over select list 
+    for(auto const &e : *statement->selectList){
+        if(e->type == kExprStar){
+            for(auto const column : table.get_column_names()){
+                column_names->push_back(column);
+            }
+        }
+        else if(e->type == kExprColumnRef){
+            column_names->push_back(e->name);
+        }
+        else return new QueryResult("Invalid selection");
+    }
+
+    //If there is a where clause...
+    plan = new EvalPlan(table);
+    if(statement->whereClause != nullptr){
+        plan = new EvalPlan(get_where_conjunction(statement->whereClause, &table.get_column_names()), plan);
+    }
+    //projection
+    plan = new EvalPlan(column_names, plan);
+    //optimize
+    EvalPlan *optimize = plan->optimize();
+    ValueDicts* rows = optimize->evaluate();
+    ColumnAttributes *column_attributes = table.get_column_attributes(*column_names);    
+    return new QueryResult(column_names, column_attributes, rows, "successufly returned " + to_string(rows->size()) + " rows"); 
 }
 
 // Pull out conjunctions of equality predicates from parse tree
